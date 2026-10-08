@@ -1,0 +1,8 @@
+iot_node/secrets.h
+build/
+iot_node/build/
+__pycache__/
+*.pyc
+*.bin
+*.db
+*.env
