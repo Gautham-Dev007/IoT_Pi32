@@ -1,6 +1,6 @@
 <div align="center">
 
-# IoT Hub
+# IoT_Pi32
 
 **Temperature and humidity monitoring with ESP32-S3 sensor nodes and a Raspberry Pi hub.**
 Live dashboard from anywhere, phone alerts, email reports, cloud upload and over-the-air updates,
@@ -20,18 +20,33 @@ built to keep every reading through Wi-Fi drops and power cuts.
 
 ## Contents
 
-- [Highlights](#highlights)
-- [Screenshots](#screenshots)
-- [How it works](#how-it-works)
-- [Hardware](#hardware)
-- [Getting started](#getting-started)
-- [Everyday use](#everyday-use)
-- [Configuration](#configuration)
-- [Reference](#reference)
-- [Troubleshooting](#troubleshooting)
-- [Project layout](#project-layout)
+1. [Highlights](#1-highlights)
+2. [Screenshots](#2-screenshots)
+3. [How it works](#3-how-it-works)
+   1. [Data flow](#31-data-flow)
+   2. [Power cuts and gaps](#32-power-cuts-and-gaps)
+   3. [Firmware updates](#33-firmware-updates)
+4. [Hardware](#4-hardware)
+   1. [Parts](#41-parts)
+   2. [Wiring](#42-wiring)
+5. [Getting started](#5-getting-started)
+   1. [Prepare the Pi](#51-prepare-the-pi)
+   2. [Install the hub](#52-install-the-hub)
+   3. [Optional extras](#53-optional-extras)
+   4. [Flash the first node](#54-flash-the-first-node)
+6. [Everyday use](#6-everyday-use)
+   1. [Update firmware over Wi-Fi](#61-update-firmware-over-wi-fi)
+   2. [Common commands](#62-common-commands)
+   3. [Status LED](#63-status-led)
+   4. [Install the dashboard as an app](#64-install-the-dashboard-as-an-app)
+7. [Troubleshooting](#7-troubleshooting)
+8. [Project layout](#8-project-layout)
 
-## Highlights
+**Full reference** – every command, setting, MQTT topic and API endpoint: [docs/REFERENCE.md](docs/REFERENCE.md)
+
+---
+
+## 1. Highlights
 
 | | |
 | --- | --- |
@@ -44,7 +59,7 @@ built to keep every reading through Wi-Fi drops and power cuts.
 | **Works without a router** | Plug an Ethernet cable into the Pi and it becomes the access point for the nodes. Nodes find the hub on their own: gateway, mDNS, then last known address. |
 | **Readable LED** | Each node's RGB LED shows its state with smooth animations, plus a rainbow "find me" mode. |
 
-## Screenshots
+## 2. Screenshots
 
 <table>
 <tr>
@@ -63,7 +78,9 @@ built to keep every reading through Wi-Fi drops and power cuts.
 
 <sub>Screenshots use demo data.</sub>
 
-## How it works
+## 3. How it works
+
+### 3.1 Data flow
 
 ```mermaid
 flowchart LR
@@ -87,23 +104,26 @@ flowchart LR
     LT[laptop] -- deploy.sh ota --> FW
 ```
 
-**Readings.** Each node publishes temperature and humidity every 10 s (adjustable). The hub holds them
-in memory and writes them to SQLite in one transaction a minute. A daily min/avg/max table is updated
-with each write and kept forever, while raw readings are kept for 30 days.
+Each node publishes temperature and humidity every 10 s (adjustable). The hub holds readings in
+memory and writes them to SQLite in one transaction a minute. A daily min/avg/max table is updated
+with each write and kept forever; raw readings are kept for 30 days.
 
-**When the hub is unreachable** the node writes readings to a ring buffer in flash, dated by NTP or
-the hub's own clock. When the hub is back, the node sends them in batches and the charts fill in.
+### 3.2 Power cuts and gaps
 
-**After a sudden Pi power cut** the node's TCP connection still looks open for a while, and the hub
-loses whatever it hadn't written yet. To cover both, every node resends its last few minutes of
-readings after each reconnect, and the hub drops duplicates. Ten minutes after start-up the hub
-counts what is still missing and records it on the Interruptions page.
+- **Hub unreachable:** the node writes readings to a ring buffer in flash, dated by NTP or the hub's
+  clock, and sends them in batches when the hub is back. The charts fill in.
+- **Sudden Pi power cut:** the node's connection still looks open for a while, and the hub loses
+  whatever it hadn't written yet. Every node therefore resends its last few minutes after each
+  reconnect, and the hub drops duplicates.
+- **Counting what's left:** ten minutes after start-up the hub records what is still missing per node
+  on the Interruptions page. Gaps up to 15 minutes are drawn as dashed estimates, never stored as
+  readings.
+- **No clock battery:** the Pi doesn't know the time until NTP answers. Readings taken before that
+  are dated once the clock is confirmed, and nodes only get the hub's time after that.
 
-**No clock battery.** The Pi doesn't know the time until NTP answers. Readings taken before that are
-held with a monotonic timestamp and dated once the clock is confirmed, and nodes are only sent the
-hub's time after that.
+### 3.3 Firmware updates
 
-**Updates** never come from the internet directly:
+Updates never come from the internet directly:
 
 ```mermaid
 sequenceDiagram
@@ -121,7 +141,9 @@ sequenceDiagram
     Note over N: no hub within 3 min → roll back
 ```
 
-## Hardware
+## 4. Hardware
+
+### 4.1 Parts
 
 | Part | Notes |
 | --- | --- |
@@ -130,7 +152,7 @@ sequenceDiagram
 | AM2305B sensor | temperature and humidity; or a DS18B20 for temperature only |
 | 4.7 kΩ resistor | pull-up for the sensor data line |
 
-**Wiring (AM2305B or DS18B20)**
+### 4.2 Wiring
 
 | Sensor | ESP32-S3 |
 | --- | --- |
@@ -141,9 +163,9 @@ sequenceDiagram
 Avoid GPIO 0, which is the BOOT strapping pin. Give each node its own USB supply so it keeps
 recording when the Pi loses power.
 
-## Getting started
+## 5. Getting started
 
-### 1. Prepare the Pi
+### 5.1 Prepare the Pi
 
 Flash Raspberry Pi OS Lite with SSH enabled, then:
 
@@ -163,7 +185,7 @@ sudo tailscale up --ssh
 sudo tailscale funnel --bg 8080      # optional: public HTTPS link to the dashboard
 ```
 
-### 2. Install the hub
+### 5.2 Install the hub
 
 From your laptop (replace `<pi>` with the Pi's SSH host):
 
@@ -175,7 +197,7 @@ ssh -t <pi> bash iothub-ota/setup-dashboard.sh    # hub service, dashboard, ioth
 
 The dashboard is now at `http://<pi>:8080`.
 
-### 3. Optional extras
+### 5.3 Optional extras
 
 | Script | Adds |
 | --- | --- |
@@ -189,7 +211,7 @@ The dashboard is now at `http://<pi>:8080`.
 Run them on the Pi with `bash ~/iothub-ota/<script>`. When you copy an updated `pi` folder later,
 `scp` places it at `~/iothub-ota/pi/`, so run the scripts from there.
 
-### 4. Flash the first node
+### 5.4 Flash the first node
 
 On the laptop, with [arduino-cli](https://arduino.github.io/arduino-cli/) installed and your user
 allowed to use serial ports:
@@ -207,11 +229,11 @@ Then name it:
 ssh <pi> iothub rename esp-a1b2c3 node1
 ```
 
-`deploy.sh` reaches the Pi through the SSH host `pi`; set `PI_HOST` to use another.
+All settings in `secrets.h` are listed in the [reference](docs/REFERENCE.md#3-node-settings).
 
-## Everyday use
+## 6. Everyday use
 
-### Update firmware over Wi-Fi
+### 6.1 Update firmware over Wi-Fi
 
 ```bash
 ./deploy.sh ota node1      # or: ./deploy.sh ota all
@@ -219,35 +241,23 @@ ssh <pi> iothub rename esp-a1b2c3 node1
 
 It ends with `booted fw=<version>`. `./deploy.sh usb` always works as a fallback.
 
-### The `iothub` command
+### 6.2 Common commands
 
-Run on the Pi (or `ssh <pi> iothub …`):
+Run on the Pi, or from anywhere with `ssh <pi> iothub …`:
 
 | Command | |
 | --- | --- |
 | `iothub status` | services, links, nodes online, open problems |
 | `iothub nodes` | every node: readings, sensor, firmware, signal |
 | `iothub watch [node]` | live MQTT stream |
-| `iothub logs` | live hub log |
-| `iothub interruptions [days]` | power cuts, boot times, readings lost, node restarts |
-| `iothub adafruit` | cloud upload status |
+| `iothub interruptions` | power cuts, boot times, readings lost |
 | `iothub find <node>` | rainbow LED for 10 s |
-| `iothub interval <node\|all> <s>` | report interval |
-| `iothub brightness <node\|all> <0-255>` | LED brightness |
-| `iothub reboot-node <node\|all>` | restart nodes |
-| `iothub rename <node> <name>` | rename a node |
-| `iothub ota <node\|all> <file.bin>` | push a firmware image |
-| `iothub report [hours] [emails]` | email a report now |
-| `iothub export [days]` | readings as CSV |
-| `iothub backup` | copy of the database |
-| `iothub reset-readings [--node N] [--events]` | delete readings (backs up first) |
-| `iothub clear-node-buffers` | nodes drop stored offline readings |
-| `iothub reset-all` | fresh start (backs up first) |
-| `iothub password` | change the dashboard admin password |
-| `iothub test-alert` | send a test notification |
-| `iothub restart` | restart the hub service |
+| `iothub report` | email a report now |
 
-### What the LED means
+The full list, with node control, data export, backups and resets, is in the
+[command reference](docs/REFERENCE.md#2-pi-the-iothub-command).
+
+### 6.3 Status LED
 
 | LED | State |
 | --- | --- |
@@ -259,69 +269,12 @@ Run on the Pi (or `ssh <pi> iothub …`):
 | 🟣 purple | firmware update |
 | 🌈 rainbow | "find node" |
 
-### Install the dashboard as an app
+### 6.4 Install the dashboard as an app
 
 Open the HTTPS (Funnel) link. In Chrome, Edge or Android use **Install app**; on iPhone use
 Safari → Share → **Add to Home Screen**.
 
-## Configuration
-
-**Node** – `iot_node/secrets.h` (copied from `secrets.example.h`, ignored by git):
-
-| Setting | |
-| --- | --- |
-| `WIFI_SSID`, `WIFI_PASS` | your 2.4 GHz Wi-Fi |
-| `MQTT_USER`, `MQTT_PASS` | the Mosquitto login |
-| `AP_PASS` | password of the Pi's `IoTHub` Wi-Fi (Ethernet mode), empty if unused |
-| `MQTT_HOST` | optional fixed hub IP, last resort after gateway and mDNS |
-| `LED_PIN` | onboard RGB LED (48 on DevKitM-1) |
-| `USE_DS18B20`, `SENSOR_PIN` | sensor choice and pin |
-
-**Hub** – files in `~/.config/iothub/` on the Pi, written by the setup scripts:
-
-| File | Contents |
-| --- | --- |
-| `mqtt.env` | MQTT login |
-| `dashboard.env` | admin password, port |
-| `alerts.env` | ntfy / Telegram, limits |
-| `adafruit.env` | Adafruit IO username and key |
-| `email.env` | sender, recipients, daily report time |
-| `storage.env` | `FLUSH_MINUTES` (1), `RAW_KEEP_DAYS` (30), `FILL_MAX_MINUTES` (15) |
-
-Apply changes with `iothub restart`.
-
-## Reference
-
-### MQTT topics
-
-| Topic | |
-| --- | --- |
-| `home/<node>/temp`, `hum` | readings |
-| `home/<node>/backlog` | stored readings `{"r": [[epoch, temp, hum], …]}` |
-| `home/<node>/status` | `online` / `offline` (retained, last will) |
-| `home/<node>/info` | JSON details (retained) |
-| `home/<node>/ota/status`, `log` | update progress, messages |
-| `home/<node>/cmd`, `home/all/cmd` | `reboot`, `info`, `identify`, `brightness N`, `interval S`, `name NEW`, `clearbuffer`, `ota URL` |
-| `home/hub/time` | hub clock for nodes without NTP |
-
-### HTTP API
-
-Everything the dashboard shows is plain JSON. `POST` endpoints need an admin session.
-
-| Endpoint | |
-| --- | --- |
-| `GET /api/nodes` | nodes, alerts, integrations, storage |
-| `GET /api/history?hours=24&metric=temp` | chart series (`start`/`end` also accepted) |
-| `GET /api/daily?days=30&metric=hum` | daily min/avg/max |
-| `GET /api/events` | event log with filters |
-| `GET /api/interruptions?days=30` | outages, gaps, node restarts, completeness |
-| `GET /api/health`, `/api/config` | service health, settings |
-| `GET /api/export.csv`, `/api/daily.csv`, `/api/events.csv`, `/api/interruptions.csv` | downloads (`export.csv?fill=1` adds estimates) |
-| `POST /api/login`, `/api/logout` | admin session |
-| `POST /api/nodes/<id>/cmd` | `{"cmd": "identify"}` etc. |
-| `POST /api/report/send`, `/api/alerts/test`, `/api/alerts/<key>/ack` | actions |
-
-## Troubleshooting
+## 7. Troubleshooting
 
 | Symptom | Fix |
 | --- | --- |
@@ -335,7 +288,7 @@ Everything the dashboard shows is plain JSON. `POST` endpoints need an admin ses
 | Gaps after a power cut | normal if the node lost power too; give nodes their own supply |
 | Under-voltage warnings | use a 5.1 V 3 A supply for the Pi |
 
-## Project layout
+## 8. Project layout
 
 ```
 iot_node/
@@ -351,5 +304,7 @@ pi/
   dashboard/
     iothub.py             hub service: MQTT, storage, alerts, reports, uploads, web API
     static/               dashboard web app, manifest, service worker, icons
-docs/images/              screenshots
+docs/
+  REFERENCE.md            commands, settings, MQTT topics, HTTP API
+  images/                 screenshots
 ```
