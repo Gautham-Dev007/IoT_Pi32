@@ -35,7 +35,7 @@ DATA_DIR = os.path.join(HOME, "iothub-data")
 DB_PATH = os.path.join(DATA_DIR, "readings.db")
 STATIC = os.path.join(os.path.dirname(os.path.abspath(__file__)), "static")
 
-HUB_VERSION = "2.6"
+HUB_VERSION = "2.7"
 PI_ID = "pi"
 PI_EVERY_S = 10
 ID_RE = re.compile(r"^[a-z0-9_-]{1,24}$")
@@ -1702,7 +1702,7 @@ def index():
 
 APP_FILES = {"manifest.webmanifest": "application/manifest+json", "sw.js": "text/javascript",
              "icon-192.png": "image/png", "icon-512.png": "image/png", "icon-maskable.png": "image/png",
-             "apple-touch-icon.png": "image/png"}
+             "apple-touch-icon.png": "image/png", "qrcode.js": "text/javascript"}
 
 
 @app.get("/<name>")
@@ -1953,6 +1953,18 @@ def api_health():
     }), (200 if healthy else 503)
 
 
+_pub = {"url": None, "at": 0}
+
+
+def _public_url():
+    if PUBLIC_URL:
+        return PUBLIC_URL
+    if time.time() - _pub["at"] > 600:
+        m = re.search(r"https://[^\s]+", _run(["tailscale", "funnel", "status"]) or "")
+        _pub.update(url=m.group(0).rstrip("/") if m else None, at=time.time())
+    return _pub["url"]
+
+
 @app.get("/api/config")
 def api_config():
     return jsonify({
@@ -1964,6 +1976,7 @@ def api_config():
         "adafruit": {"enabled": bool(AIO_USER and AIO_KEY), "user": AIO_USER if g.role == "admin" else None,
                      "group": AIO_GROUP},
         "timezone": time.strftime("%Z (UTC%z)"),
+        "public_url": _public_url(),
     })
 
 

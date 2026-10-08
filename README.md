@@ -274,6 +274,9 @@ The full list, with node control, data export, backups and resets, is in the
 Open the HTTPS (Funnel) link. In Chrome, Edge or Android use **Install app**; on iPhone use
 Safari → Share → **Add to Home Screen**.
 
+To let someone else open it, click **Share** at the top of the dashboard: it shows a QR code for the
+public link, ready to scan with a phone camera.
+
 ## 7. Troubleshooting
 
 | Symptom | Fix |

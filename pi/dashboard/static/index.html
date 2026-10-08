@@ -171,6 +171,14 @@ select.btn, input.btn { cursor: auto; }
 .alert .act { align-self: center; }
 .cat-group + .cat-group { margin-top: 18px; }
 .cat-group h3 { font-size: 13.5px; font-weight: 600; color: var(--ink-2); margin: 0 0 4px; }
+#shareDlg { width: min(400px, 94vw); text-align: center; }
+#shareDlg .qr { background: #fff; border-radius: 10px; padding: 14px; margin: 6px auto 12px; width: min(280px, 72vw); }
+#shareDlg .qr svg { display: block; width: 100%; height: auto; }
+#shareDlg .url { font-family: var(--num); font-size: 15px; word-break: break-all; color: var(--ink); margin: 0 0 10px; }
+#shareDlg .row { justify-content: center; margin-bottom: 14px; }
+#shareDlg .repo { border-top: 1px solid var(--rule); padding-top: 14px; display: flex; align-items: center; justify-content: center; gap: 8px; font-size: 13.5px; }
+#shareDlg .repo a, .rail-foot a { color: var(--ink-2); text-decoration: none; display: inline-flex; align-items: center; gap: 6px; }
+#shareDlg .repo a:hover, .rail-foot a:hover { color: var(--accent); }
 .tiles { display: grid; gap: 10px; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); }
 .tile { background: var(--sunken); border: 1px solid var(--rule); border-radius: 8px; padding: 10px 12px; min-width: 0; }
 .tile b { display: block; font-family: var(--num); font-size: 26px; font-weight: 500; line-height: 1.15; }
@@ -259,6 +267,7 @@ dialog .row { display: flex; gap: 8px; justify-content: flex-end; }
     <a class="nav" href="#hub" data-view="hub"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="4" y="4" width="12" height="12" rx="2"/><path d="M8 1.5v2.5M12 1.5v2.5M8 16v2.5M12 16v2.5M1.5 8H4M1.5 12H4M16 8h2.5M16 12h2.5"/></svg>Hub</a>
     <div class="rail-foot">
       <span id="verTxt"></span>
+      <a href="https://github.com/Gautham-Dev007/IoT_Pi32" target="_blank" rel="noopener"><svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true" fill="currentColor"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>Source on GitHub</a>
     </div>
   </nav>
 
@@ -267,7 +276,7 @@ dialog .row { display: flex; gap: 8px; justify-content: flex-end; }
     <div class="topline">
       <h1 class="verdict" id="verdict"><span class="mark"></span><span id="verdictTxt">Connecting to the hub…</span></h1>
       <div class="conn" id="conn" aria-live="polite"><i></i><span id="connTxt">Connecting</span></div>
-      <div class="account"><button class="btn" id="installBtn" hidden>Install app</button><span id="acctTxt">Viewing as guest</span><button class="btn" id="acctBtn">Admin sign in</button></div>
+      <div class="account"><button class="btn" id="shareBtn" title="Show a QR code to open this dashboard"><svg viewBox="0 0 20 20" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><rect x="3" y="3" width="5" height="5" rx="1"/><rect x="12" y="3" width="5" height="5" rx="1"/><rect x="3" y="12" width="5" height="5" rx="1"/><path d="M12 12h2v2h-2zM15 15h2v2h-2zM12 16v1M16 12h1"/></svg>Share</button><button class="btn" id="installBtn" hidden>Install app</button><span id="acctTxt">Viewing as guest</span><button class="btn" id="acctBtn">Admin sign in</button></div>
     </div>
 
     <section data-section="overview">
@@ -438,7 +447,16 @@ dialog .row { display: flex; gap: 8px; justify-content: flex-end; }
     <div class="row"><button type="button" class="btn" id="loginCancel">Cancel</button><button type="submit" class="btn primary" id="loginGo">Sign in</button></div>
   </form>
 </dialog>
+<dialog id="shareDlg" aria-labelledby="shareTitle">
+  <h2 id="shareTitle">Open this dashboard</h2>
+  <p id="shareNote">Scan with a phone camera.</p>
+  <div class="qr" id="shareQr"></div>
+  <p class="url" id="shareUrl"></p>
+  <div class="row"><button type="button" class="btn" id="shareCopy">Copy link</button><button type="button" class="btn primary" id="shareClose">Done</button></div>
+  <div class="repo"><svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true" fill="currentColor"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg><span>Source code:</span><a href="https://github.com/Gautham-Dev007/IoT_Pi32" target="_blank" rel="noopener">Gautham-Dev007/IoT_Pi32</a></div>
+</dialog>
 
+<script src="/qrcode.js"></script>
 <script>
 'use strict';
 const $ = (s, el = document) => el.querySelector(s);
@@ -1201,6 +1219,28 @@ async function loadHub() {
 window.addEventListener('resize', () => { clearTimeout(window._rz); window._rz = setTimeout(redrawCharts, 120); });
 matchMedia('(prefers-color-scheme: dark)').addEventListener?.('change', redrawCharts);
 api('/api/me').then(m => { pwSet = m.password_set; applyRole(m.role); }).catch(() => applyRole('guest'));
+const REPO_URL = 'https://github.com/Gautham-Dev007/IoT_Pi32';
+function shareUrl() { return (S.cfg?.public_url || location.origin).replace(/\/+$/, ''); }
+async function openShare() {
+  if (!S.cfg) { try { S.cfg = await api('/api/config'); } catch { /* use this address */ } }
+  const url = shareUrl(), isPublic = !!S.cfg?.public_url || location.protocol === 'https:';
+  try {
+    const q = qrcode(0, 'M'); q.addData(url); q.make();
+    $('#shareQr').innerHTML = q.createSvgTag({ cellSize: 8, margin: 2, scalable: true });
+  } catch { $('#shareQr').innerHTML = '<p>QR code unavailable</p>'; }
+  $('#shareUrl').textContent = url;
+  $('#shareNote').textContent = isPublic ? 'Scan with a phone camera to open the live dashboard.'
+    : 'This address only works on the same network. Turn on Tailscale Funnel for a public link.';
+  $('#shareDlg').showModal();
+}
+$('#shareBtn').onclick = openShare;
+$('#shareClose').onclick = () => $('#shareDlg').close();
+$('#shareDlg').addEventListener('click', e => { if (e.target === $('#shareDlg')) $('#shareDlg').close(); });
+$('#shareCopy').onclick = async () => {
+  const url = shareUrl();
+  try { await navigator.clipboard.writeText(url); toast('Link copied'); }
+  catch { const r = document.createRange(); r.selectNodeContents($('#shareUrl')); getSelection().removeAllRanges(); getSelection().addRange(r); toast('Press Ctrl+C to copy'); }
+};
 let installEvt = null;
 const standalone = matchMedia('(display-mode: standalone)').matches || navigator.standalone;
 const isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
