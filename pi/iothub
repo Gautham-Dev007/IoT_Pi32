@@ -1,0 +1,345 @@
+#!/usr/bin/env bash
+set -uo pipefail
+
+CONF_DIR="$HOME/.config/iothub"
+DATA_DIR="$HOME/iothub-data"
+DB="$DATA_DIR/readings.db"
+PORT=8080
+[[ -f $CONF_DIR/dashboard.env ]] && PORT=$(grep -oP '^DASH_PORT=\K\d+' "$CONF_DIR/dashboard.env" 2>/dev/null || echo 8080)
+API="http://127.0.0.1:$PORT"
+
+if [[ -f $CONF_DIR/mqtt.env ]]; then
+  source "$CONF_DIR/mqtt.env"
+fi
+M=(-h localhost -u "${MQTT_USER:-esp}" -P "${MQTT_PASS:-}")
+
+bold() { printf '\e[1m%s\e[0m\n' "$*"; }
+die() { echo "iothub: $*" >&2; exit 1; }
+need_node() { [[ -n ${1:-} ]] || die "which node? e.g.  iothub $2 node1   (iothub nodes lists them)"; }
+valid_id() { [[ $1 =~ ^[a-z0-9_-]{1,24}$ ]] || die "'$1' is not a valid node name"; }
+send_cmd() {
+  valid_id "$1"
+  mosquitto_pub "${M[@]}" -t "home/$1/cmd" -m "$2" && echo "sent '$2' to $1"
+}
+confirm() { [[ ${YES:-} == 1 ]] && return 0; read -rp "$1 [y/N] " a; [[ $a =~ ^[Yy] ]]; }
+
+usage() {
+  cat <<'EOF'
+iothub - manage the IoT hub
+
+Everyday
+  iothub status                  services, dashboard links, nodes online, open problems
+  iothub nodes                   every node: online?, temperature, humidity, sensor, firmware, IP
+  iothub watch [node]            live stream of everything the nodes send (Ctrl+C to stop)
+  iothub logs                    live hub log (Ctrl+C to stop)
+  iothub adafruit                what is being uploaded to Adafruit IO, and any error
+  iothub interruptions [days]    power cuts, reboots, boot times, node restarts and readings
+                                 lost (default last 30 days)
+
+Nodes
+  iothub find <node>             LED cycles rainbow colours for 10 s so you can spot it
+  iothub interval <node|all> <s> how often it reports, in seconds (2-3600)
+  iothub brightness <node|all> <0-255>   status LED brightness
+  iothub reboot-node <node|all>  restart the ESP32
+  iothub rename <node> <newname> give a node a new name (it restarts)
+  iothub ota <node|all> <file.bin>       firmware update over Wi-Fi (via this Pi)
+
+Reports
+  iothub report [hours] [email ...]  email a report with graphs now (default: last 24 h to
+                                 the saved recipients; add addresses to send elsewhere)
+
+Data
+  iothub export [days]           save readings as CSV in ~/iothub-exports (default 1 day)
+  iothub backup                  copy the database to ~/iothub-data/backups
+  iothub reset-readings [--node NAME] [--events] [--yes]
+                                 delete stored readings (backs up first). --node: only that
+                                 node; --events: also clear the event log
+  iothub clear-node-buffers      tell every node to drop readings it stored while offline
+  iothub reset-all [--yes]       fresh start: clears node buffers, ALL readings, daily summaries,
+                                 events and open alerts (backs up first); asks about Adafruit IO
+
+Hub
+  iothub restart                 restart the hub service (dashboard, alerts, uploads)
+  iothub password                change the dashboard admin password
+  iothub test-alert              send a test notification to your phone
+  iothub help                    this list
+EOF
+}
+
+api_json() { curl -fsS --max-time 5 "$API$1"; }
+
+cmd_status() {
+  bold "Services"
+  for s in iothub mosquitto iothub-firmware tailscaled; do
+    st=$(systemctl is-active "$s" 2>/dev/null); printf '  %-17s %s\n' "$s" "$st"
+  done
+  bold "Dashboard"
+  echo "  this network : http://$(hostname -I | awk '{print $1}'):$PORT"
+  ts=$(tailscale ip -4 2>/dev/null | head -1); [[ -n $ts ]] && echo "  tailscale    : http://$ts:$PORT"
+  fun=$(tailscale funnel status 2>/dev/null | grep -oE 'https://[^ ]+' | head -1); [[ -n $fun ]] && echo "  public       : $fun"
+  bold "Right now"
+  api_json /api/nodes | python3 -c '
+import json, sys, time
+d = json.load(sys.stdin)
+esp = [n for n in d["nodes"] if not n["is_pi"]]
+on = [n for n in esp if n["status"] == "online"]
+print(f"  nodes online : {len(on)} of {len(esp)}")
+pi = next((n for n in d["nodes"] if n["is_pi"]), None)
+if pi and pi.get("temp") is not None: print("  Pi CPU       : %.1f C" % pi["temp"])
+al = d.get("alerts", [])
+print(f"  open problems: {len(al)}")
+for a in al: print("    [%s] %s" % (a["level"].upper(), a["msg"][:100]))
+st = d.get("storage", {})
+print("  readings held in RAM: %s, written to SD every %s min" % (st.get("pending"), st.get("flush_s", 0) // 60))
+' 2>/dev/null || echo "  (dashboard service not answering - try: iothub logs)"
+}
+
+cmd_nodes() {
+  timeout 3 mosquitto_sub "${M[@]}" -v -t 'home/+/info' -t 'home/+/status' -t 'home/+/temp' -t 'home/+/hum' 2>/dev/null \
+  | python3 -c '
+import json, sys
+nodes = {}
+for line in sys.stdin:
+    topic, _, payload = line.strip().partition(" ")
+    parts = topic.split("/")
+    if len(parts) != 3 or parts[1] in ("all", "hub", "test"): continue
+    n = nodes.setdefault(parts[1], {})
+    if parts[2] == "info":
+        try: n.update(json.loads(payload))
+        except ValueError: pass
+    else: n[parts[2]] = payload
+if not nodes: print("no nodes have reported yet"); sys.exit()
+fmt = "{:<14}{:<9}{:>8}{:>9}  {:<9}{:<8}{:<16}{}"
+print(fmt.format("NODE", "STATUS", "TEMP", "HUMID", "SENSOR", "FW", "IP", "WI-FI"))
+for nid, n in sorted(nodes.items()):
+    t = "%.1fC" % float(n["temp"]) if n.get("temp") else "-"
+    h = "%.0f%%" % float(n["hum"]) if n.get("hum") else "-"
+    print(fmt.format(nid, n.get("status", "?"), t, h, str(n.get("sensor", "-")), str(n.get("fw", "-")),
+                     str(n.get("ip", "-")), ("%s %sdBm" % (n.get("wifi", ""), n["rssi"])).strip() if "rssi" in n else "-"))
+'
+  echo "(temp/humidity appear once the node sends its next reading)"
+}
+
+cmd_reset() {
+  local node="" events=0 alerts=0
+  while [[ $# -gt 0 ]]; do
+    case $1 in
+      --node) node=${2:-}; shift 2; valid_id "$node";;
+      --events) events=1; shift;;
+      --alerts) alerts=1; shift;;
+      --yes|-y) YES=1; shift;;
+      *) die "unknown option $1 (use --node NAME, --events, --yes)";;
+    esac
+  done
+  [[ -f $DB ]] || die "no database at $DB"
+  what=${node:+"readings for $node"}; what=${what:-"ALL readings and daily summaries"}
+  (( events )) && what="$what, and the event log"
+  (( alerts )) && what="$what, and open alerts"
+  confirm "Delete $what? A backup is made first." || { echo "cancelled"; exit 1; }
+  echo "stopping the hub (it saves what is in memory first)..."
+  sudo systemctl stop iothub
+  cmd_backup || { sudo systemctl start iothub; die "backup failed - nothing deleted"; }
+  python3 - "$DB" "$node" "$events" <<'PY'
+import sqlite3, sys
+db, node, events = sys.argv[1], sys.argv[2], sys.argv[3] == "1"
+con = sqlite3.connect(db)
+where, args = ("WHERE node = ?", (node,)) if node else ("", ())
+r = con.execute(f"DELETE FROM readings {where}", args).rowcount
+d = con.execute(f"DELETE FROM daily {where}", args).rowcount
+e = con.execute(f"DELETE FROM events {where}", args).rowcount if events else 0
+if events:  # the interruption history goes with the event log
+    for t in ("outages", "node_boots"):
+        try:
+            con.execute(f"DELETE FROM {t}" + ("" if t == "outages" or not node else " WHERE node = ?"),
+                        () if t == "outages" or not node else (node,))
+        except sqlite3.OperationalError:
+            pass  # table not created yet (hub older than 2.6)
+con.commit()
+con.execute("VACUUM")
+print(f"deleted {r} readings, {d} daily summaries" + (f", {e} events" if events else ""))
+PY
+  if (( alerts )); then
+    rm -f "$DATA_DIR/active_alerts.json" && echo "cleared open alerts (anything still wrong will be raised again)"
+  fi
+  sudo systemctl start iothub
+  echo "hub started again. Nodes keep sending new readings as normal."
+  [[ ${RESET_ALL:-} == 1 ]] || echo "Note: nodes that still hold offline readings will send them; run 'iothub clear-node-buffers' first if you don't want that."
+}
+
+cmd_reset_all() {
+  [[ ${1:-} == --yes || ${1:-} == -y ]] && YES=1
+  confirm "Fresh start: delete ALL readings, daily summaries, events and open alerts? A backup is made first." \
+    || { echo "cancelled"; exit 1; }
+  send_cmd all clearbuffer
+  sleep 2
+  YES=1 RESET_ALL=1 cmd_reset --events --alerts
+  if [[ -f $CONF_DIR/adafruit.env && ${YES:-} != 1 ]] && confirm "Also delete the history stored on Adafruit IO? (feeds are recreated automatically)"; then
+    python3 - "$CONF_DIR" <<'PY'
+import json, os, shlex, sys, urllib.request, urllib.error
+conf = sys.argv[1]
+env = {}
+for line in open(os.path.join(conf, "adafruit.env")):
+    if "=" in line:
+        k, v = line.strip().split("=", 1)
+        env[k] = " ".join(shlex.split(v)) if v else ""
+user, key = env.get("AIO_USERNAME"), env.get("AIO_KEY")
+cache_path = os.path.join(conf, "adafruit_feeds.json")
+try:
+    cache = json.load(open(cache_path))
+except (OSError, ValueError):
+    cache = {}
+feeds = cache.values() if isinstance(cache, dict) else cache
+for f in feeds:
+    req = urllib.request.Request(f"https://io.adafruit.com/api/v2/{user}/feeds/{f}", method="DELETE", headers={"X-AIO-Key": key})
+    try:
+        urllib.request.urlopen(req, timeout=15); print("deleted Adafruit IO feed", f)
+    except urllib.error.HTTPError as e:
+        print("could not delete", f, "- HTTP", e.code)
+open(cache_path, "w").write("{}")
+PY
+    sudo systemctl restart iothub
+  fi
+  echo "Fresh start done. The dashboard fills again as new readings arrive."
+}
+
+cmd_backup() {
+  mkdir -p "$DATA_DIR/backups"
+  local out="$DATA_DIR/backups/readings-$(date +%Y%m%d-%H%M%S-%3N).db"
+  python3 -c "import sqlite3,sys; s=sqlite3.connect(sys.argv[1]); d=sqlite3.connect(sys.argv[2]); s.backup(d); d.close()" "$DB" "$out" || return 1
+  echo "backup saved: $out ($(du -h "$out" | cut -f1))"
+  ls -1t "$DATA_DIR"/backups/readings-*.db 2>/dev/null | tail -n +11 | xargs -r rm -f
+}
+
+cmd_export() {
+  local days=${1:-1}; [[ $days =~ ^[0-9]+$ ]] || die "days must be a number"
+  mkdir -p "$HOME/iothub-exports"
+  local out="$HOME/iothub-exports/readings-$(date +%Y%m%d)-${days}d.csv"
+  curl -fsS --max-time 60 "$API/api/export.csv?hours=$((days * 24))" -o "$out" || die "export failed"
+  echo "saved $(($(wc -l < "$out") - 1)) readings to $out"
+  echo "copy to your laptop:  scp pi:$out ."
+}
+
+cmd_password() {
+  read -rsp "New admin password: " p1; echo
+  read -rsp "Again: " p2; echo
+  [[ -n $p1 && $p1 == "$p2" ]] || die "passwords empty or different - nothing changed"
+  f="$CONF_DIR/dashboard.env"; touch "$f"; chmod 600 "$f"
+  grep -v '^DASH_PASSWORD=' "$f" > "$f.tmp" || true
+  printf 'DASH_PASSWORD=%q\n' "$p1" >> "$f.tmp"; mv "$f.tmp" "$f"; chmod 600 "$f"
+  sudo systemctl restart iothub && echo "password changed; everyone signed in has been signed out"
+}
+
+cmd_test_alert() {
+  [[ -f $CONF_DIR/alerts.env ]] || die "alerts not set up - run: bash ~/iothub-ota/pi/setup-alerts.sh"
+  source "$CONF_DIR/alerts.env"
+  [[ -n ${NTFY_TOPIC:-} ]] || die "no ntfy topic set"
+  curl -fsS -H "Title: [INFO] IoT Hub test" -H "Tags: information_source" \
+    -d "Test from 'iothub test-alert' at $(date '+%d %b %H:%M')" "${NTFY_SERVER:-https://ntfy.sh}/$NTFY_TOPIC" >/dev/null \
+    && echo "sent - check the ntfy app (topic $NTFY_TOPIC)"
+}
+
+cmd_report() {
+  local hours=24 to=()
+  for a in "$@"; do
+    if [[ $a =~ ^[0-9]+$ ]]; then hours=$a
+    elif [[ $a == *@*.* ]]; then to+=("$a")
+    else die "usage: iothub report [hours] [email ...]"; fi
+  done
+  [[ -f $CONF_DIR/email.env ]] || die "email not set up - run: bash ~/iothub-ota/pi/setup-email.sh"
+  python3 -c 'import json,sys; print(json.dumps({"hours": int(sys.argv[1]), "to": sys.argv[2:]}))' "$hours" "${to[@]}" \
+    > "$DATA_DIR/report.request"
+  echo "report for the last $hours h queued${to:+ for ${to[*]}} - it is sent within about 30 seconds"
+  echo "check with: iothub logs   (look for 'emailed')"
+}
+
+cmd_adafruit() {
+  api_json /api/nodes | python3 -c '
+import json, sys, time
+a = json.load(sys.stdin).get("adafruit", {})
+if not a.get("enabled"): print("Adafruit IO is not set up. Run: bash ~/iothub-ota/pi/setup-adafruit.sh"); sys.exit()
+print("group  :", a.get("group"))
+print("feeds  :", ", ".join(a.get("feeds") or []) or "(none yet - waiting for readings)")
+lo = a.get("last_ok"); print("last ok:", time.strftime("%H:%M:%S", time.localtime(lo)) if lo else "never")
+print("error  :", a.get("last_error") or "none")
+if a.get("skipped"): print("skipped (free plan feed limit):", ", ".join(a["skipped"]))
+' || die "dashboard service not answering"
+}
+
+cmd_interruptions() {
+  local days=${1:-30}
+  [[ $days =~ ^[0-9]+$ ]] || die "usage: iothub interruptions [days]"
+  local py
+  py=$(cat <<'PY'
+import json, sys, time
+d = json.load(sys.stdin)
+s = d["summary"]
+def t(x):
+    return time.strftime("%d %b %H:%M", time.localtime(x)) if x else "-"
+def du(x):
+    if x is None:
+        return "-"
+    x = int(x)
+    if x < 90:
+        return "%d s" % x
+    if x >= 3600:
+        return "%d h %d min" % (x // 3600, x % 3600 // 60)
+    return "%d min" % (x // 60)
+print("Last %d days" % d["days"])
+print("  Pi power cuts   %d    reboots %d    crashes %d    off in total %s"
+      % (s["power_cuts"], s["reboots"], s["crashes"], du(s["downtime_s"])))
+print("  Boot time       last %s, average %s, fastest %s" % (du(s["last_boot_s"]), du(s["avg_boot_s"]), du(s["fastest_boot_s"])))
+pc = s["complete_pct"]
+print("  Node data       %d received, %d missing%s, %d restored from node memory"
+      % (s["received"], s["missing"], " (%s%% complete)" % pc if pc is not None else "", s["recovered"]))
+print("  Node restarts   %d (%d from power)" % (s["node_restarts"], s["node_power_restarts"]))
+outs = [o for o in d["outages"] if o["kind"] != "first"]
+if outs:
+    print()
+    print("Pi interruptions")
+    for o in outs[:15]:
+        lost = "counting" if o["lost"] is None else str(o["lost"])
+        print("  %-13s %-18s off %-12s boot %-8s lost %s"
+              % (t(o["last_alive"] or o["detected"]), o["label"], du(o["down_s"]), du(o["boot_s"]), lost))
+if d["gaps"]:
+    print()
+    print("Gaps in the data (newest first)")
+    for g in d["gaps"][:15]:
+        print("  %-10s %s -> %-13s %6d missing  %s"
+              % (g["node"], t(g["from"]), t(g["to"]) if g["to"] else "now", g["missing"], g["cause"]))
+if d["node_boots"]:
+    print()
+    print("Node restarts")
+    for b in d["node_boots"][:10]:
+        print("  %s  %-10s %s" % (t(b["ts"]), b["node"], b["reason_txt"]))
+PY
+)
+  curl -fsS --max-time 60 "$API/api/interruptions?days=$days" | python3 -c "$py" \
+    || die "dashboard service not answering (or hub older than 2.6)"
+  echo; echo "Full list: dashboard > Interruptions, or download $API/api/interruptions.csv?days=$days"
+}
+
+case ${1:-help} in
+  status) cmd_status;;
+  nodes) cmd_nodes;;
+  watch) t="home/#"; [[ -n ${2:-} ]] && { valid_id "$2"; t="home/$2/#"; }; exec mosquitto_sub "${M[@]}" -v -t "$t";;
+  logs) exec journalctl -u iothub -f -n 50;;
+  restart) sudo systemctl restart iothub && echo "hub restarted";;
+  find|identify) need_node "${2:-}" find; send_cmd "$2" identify;;
+  interval) need_node "${2:-}" interval; [[ ${3:-} =~ ^[0-9]+$ ]] || die "usage: iothub interval <node|all> <seconds>"; send_cmd "$2" "interval $3";;
+  brightness) need_node "${2:-}" brightness; [[ ${3:-} =~ ^[0-9]+$ && $3 -le 255 ]] || die "usage: iothub brightness <node|all> <0-255>"; send_cmd "$2" "brightness $3";;
+  reboot-node) need_node "${2:-}" reboot-node; send_cmd "$2" reboot;;
+  rename) need_node "${2:-}" rename; [[ $2 != all ]] || die "rename one node at a time"; valid_id "${3:-}"; send_cmd "$2" "name $3";;
+  ota) [[ $# -eq 3 ]] || die "usage: iothub ota <node|all> <firmware.bin>"; exec ota-push "$2" "$3";;
+  reset-readings) shift; cmd_reset "$@";;
+  backup) cmd_backup;;
+  export) cmd_export "${2:-1}";;
+  clear-node-buffers) send_cmd all clearbuffer;;
+  reset-all) shift; cmd_reset_all "$@";;
+  password) cmd_password;;
+  test-alert) cmd_test_alert;;
+  adafruit) cmd_adafruit;;
+  interruptions|outages) cmd_interruptions "${2:-30}";;
+  report) shift; cmd_report "$@";;
+  help|-h|--help) usage;;
+  *) echo "unknown command: $1"; echo; usage; exit 1;;
+esac
