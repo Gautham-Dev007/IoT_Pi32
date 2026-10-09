@@ -41,10 +41,16 @@ Nodes
   iothub interval <node|all> <s> how often it reports, in seconds (2-3600)
   iothub brightness <node|all> <0-255>   status LED brightness
   iothub reboot-node <node|all>  restart the ESP32
-  iothub rename <node> <newname> give a node a new name (it restarts)
+  iothub name <node> <Name> [indoor|outdoor]   friendly name and place, e.g.
+                                 iothub name node1 Balcony outdoor (history and ID stay the same)
+  iothub rename <node> <newname> change the node's ID itself (it restarts; history splits)
   iothub ota <node|all> <file.bin>       firmware update over Wi-Fi (via this Pi)
 
 Reports
+  iothub summary [yesterday|YYYY-MM-DD]  the day in plain words: problems first, highs/lows, outages
+  iothub weather                 outside now, rain coming, and tips (open a window, damp air...)
+  iothub rain                    rain chance for the next 2 h, why, and questions waiting for you
+  iothub rain yes|no|unsure      answer the latest "did it rain?" question
   iothub report [hours] [email ...]  email a report with graphs now (default: last 24 h to
                                  the saved recipients; add addresses to send elsewhere)
 
@@ -318,6 +324,111 @@ PY
   echo; echo "Full list: dashboard > Interruptions, or download $API/api/interruptions.csv?days=$days"
 }
 
+cmd_summary() {
+  local q=""
+  [[ -n ${1:-} ]] && q="?day=$1"
+  curl -fsS --max-time 30 "$API/api/summary$q" | python3 -c '
+import json, sys
+d = json.load(sys.stdin)
+print(d["intro"])
+for s in d["sections"]:
+    print()
+    print(s["title"].upper())
+    for ln in s["lines"]:
+        print("  - " + ln)
+' || die "dashboard service not answering (or hub older than 2.11)"
+}
+
+cmd_weather() {
+  curl -fsS --max-time 30 "$API/api/weather" | python3 -c '
+import json, sys, time
+d = json.load(sys.stdin)
+if not d.get("enabled"):
+    print("Weather is not set up. Run: bash ~/iothub-ota/pi/setup-weather.sh"); sys.exit()
+c = d.get("current") or {}
+print("%s now: %s C, %s%% humidity, %s" % (d.get("place") or "Outside", c.get("temp"), c.get("hum"), c.get("desc")))
+for x in d.get("daily", [])[2:4]:
+    print("  %s: %s, %s-%s C, rain %s%%" % (x["day"], x["desc"], x["lo"], x["hi"], x.get("rain_prob")))
+for i in d.get("insights", []):
+    print("  * " + i["text"])
+if d.get("error"):
+    print("last error: " + d["error"])
+' || die "dashboard service not answering"
+}
+
+cmd_name() {
+  local nid=${1:-} place=indoor
+  [[ -n $nid && $# -ge 2 ]] || die "usage: iothub name <node> <Name> [indoor|outdoor]   (Name '-' removes it)"
+  valid_id "$nid"; shift
+  [[ ${!#} == outdoor || ${!#} == indoor ]] && { place=${!#}; set -- "${@:1:$#-1}"; }
+  python3 - "$CONF_DIR/nodes.env" "$nid" "$place" "$*" <<'PY2'
+import os, re, sys
+path, nid, place, name = sys.argv[1:]
+name = re.sub(r"\s+", " ", name).strip()
+if name != "-" and not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9 '&.-]{0,23}", name):
+    sys.exit("name: up to 24 letters, numbers and spaces")
+cur = {}
+if os.path.exists(path):
+    for line in open(path):
+        k, _, v = line.strip().partition("=")
+        if k:
+            cur[k] = v
+if name == "-":
+    cur.pop(nid, None)
+else:
+    cur[nid] = f"{name}|{place}"
+open(path + ".tmp", "w").write("".join(f"{k}={v}\n" for k, v in sorted(cur.items())))
+os.replace(path + ".tmp", path)
+print(f"{nid} is now '{name}' ({place}). The dashboard, summaries and Google Home use it within a minute."
+      if name != "-" else f"{nid} uses its ID again.")
+PY2
+}
+
+cmd_rain() {
+  local ans=${1:-}
+  if [[ -n $ans ]]; then
+    [[ $ans =~ ^(yes|no|unsure)$ ]] || die "usage: iothub rain [yes|no|unsure]"
+    local id
+    id=$(curl -fsS --max-time 20 "$API/api/rain" | python3 -c 'import json,sys; o=json.load(sys.stdin)["open"]; print(o[0]["id"] if o else "")') \
+      || die "dashboard service not answering"
+    [[ -n $id ]] || { echo "No questions waiting."; return; }
+    local sig
+    sig=$(python3 -c 'import hmac,sys; k=open(sys.argv[1],"rb").read(); print(hmac.new(k, ("rain:"+sys.argv[2]).encode(), "sha256").hexdigest()[:24])' \
+      "$CONF_DIR/session.key" "$id") || die "can't read the hub key"
+    curl -fsS --max-time 20 -X POST "$API/api/rain/$id/answer?sig=$sig&a=$ans" | python3 -c 'import json,sys; print(json.load(sys.stdin)["thanks"])'
+    return
+  fi
+  curl -fsS --max-time 30 "$API/api/rain" | python3 -c '
+import json, sys, time
+d = json.load(sys.stdin)
+if not d.get("enabled"):
+    print("No outdoor node yet. Mark one with: iothub name node1 Balcony outdoor"); sys.exit()
+o = d.get("outlook")
+if o:
+    print("Rain %s in the next 2 hours: %d%% (forecast: %s%%)" % (o["where"], round(o["p"] * 100), round(o["forecast"]) if o["forecast"] is not None else "?"))
+    for w in o["why"]:
+        print("  - " + w)
+m, s = d["model"], d.get("score")
+print("Learned from %d moments, %d with rain%s." % (m["examples"], m["rain_examples"],
+      ", last trained " + time.strftime("%H:%M", time.localtime(m["trained"])) if m["trained"] else " (not trained yet)"))
+if s and s.get("rains"):
+    print("Last 30 days: caught %d of %d rains, %d false alarms (forecast alone: %d caught, %d false alarms)."
+          % (s["caught"], s["rains"], s["false_alarms"], s["fc_caught"], s["fc_false_alarms"]))
+for q in d["open"][:3]:
+    print("\n? " + q["question"] + "\n  " + q["why"] + "\n  answer: iothub rain yes|no|unsure")
+' || die "dashboard service not answering (or hub older than 2.14)"
+}
+
+cmd_speak() {
+  local arg=${1:-}
+  if [[ -z $arg || $arg == yesterday || $arg =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}$ ]]; then
+    printf '{"day": "%s"}' "$arg" > "$DATA_DIR/speak.request"
+  else
+    python3 -c 'import json,sys; print(json.dumps({"text": " ".join(sys.argv[1:])}))' "$@" > "$DATA_DIR/speak.request"
+  fi
+  echo "queued - the speaker starts within a few seconds (iothub logs shows any problem)"
+}
+
 case ${1:-help} in
   status) cmd_status;;
   nodes) cmd_nodes;;
@@ -340,6 +451,11 @@ case ${1:-help} in
   adafruit) cmd_adafruit;;
   interruptions|outages) cmd_interruptions "${2:-30}";;
   report) shift; cmd_report "$@";;
+  summary) cmd_summary "${2:-}";;
+  speak|say) shift; cmd_speak "$@";;
+  weather) cmd_weather;;
+  rain) cmd_rain "${2:-}";;
+  name|label) shift; cmd_name "$@";;
   help|-h|--help) usage;;
   *) echo "unknown command: $1"; echo; usage; exit 1;;
 esac

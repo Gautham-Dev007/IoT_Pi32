@@ -106,7 +106,7 @@ select.btn, input.btn { cursor: auto; }
 .readouts { display: grid; gap: 14px; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); margin-bottom: 18px; }
 .readout { background: var(--panel); border: 1px solid var(--rule); border-radius: var(--r); padding: 14px 16px 16px; cursor: pointer;
            border-top: 3px solid var(--ok); text-align: left; width: 100%; }
-.readout.offline, .readout.fault { border-top-color: var(--crit); } .readout.hub { border-top-color: var(--info); }
+.readout.offline, .readout.fault { border-top-color: var(--crit); } .readout.outside { border-top-color: var(--ink-3); background: var(--sunken); } .readout.hub { border-top-color: var(--info); }
 .readout:hover { border-color: var(--rule-2); }
 .ro-head { display: flex; align-items: baseline; gap: 8px; }
 .ro-head h3 { margin: 0; font-size: 15px; font-weight: 600; }
@@ -179,6 +179,43 @@ select.btn, input.btn { cursor: auto; }
 #shareDlg .repo { border-top: 1px solid var(--rule); padding-top: 14px; display: flex; align-items: center; justify-content: center; gap: 8px; font-size: 13.5px; }
 #shareDlg .repo a, .rail-foot a { color: var(--ink-2); text-decoration: none; display: inline-flex; align-items: center; gap: 6px; }
 #shareDlg .repo a:hover, .rail-foot a:hover { color: var(--accent); }
+.sum-head { display: flex; align-items: baseline; gap: 10px; margin: -4px 0 14px; }
+.sum-head .dot { transform: translateY(-1px); }
+.sum-head .headline { font-size: 15.5px; font-weight: 500; }
+.sum-head .dot { width: 10px; height: 10px; border-radius: 50%; background: var(--ok); flex: none; }
+.sum-head.crit .dot { background: var(--crit); } .sum-head.anomaly .dot { background: var(--warn); }
+.sum-grid { display: grid; grid-template-columns: minmax(0, 5fr) minmax(0, 6fr); gap: 18px 28px; align-items: start; }
+@media (max-width: 1100px) { .sum-grid { grid-template-columns: minmax(0, 1fr); } }
+.sum-grid h3 { font-size: 12.5px; font-weight: 600; color: var(--ink-3); text-transform: uppercase; letter-spacing: .4px; margin: 0 0 8px; }
+.attn { display: grid; gap: 8px; }
+.attn div { display: grid; grid-template-columns: 4px 1fr; gap: 0 10px; font-size: 14px; line-height: 1.45; }
+.attn i { border-radius: 2px; background: var(--warn); }
+.attn .crit i { background: var(--crit); } .attn .warn i { background: var(--rule-2); }
+.attn .crit span { color: var(--crit); } .attn .note i { background: var(--info); }
+.attn small { color: var(--ink-3); font-size: 12px; display: block; }
+.attn .clear { grid-template-columns: 1fr; color: var(--ok); }
+body:not(.guest) .guest-only { display: none; }
+.ns td.hi { color: var(--warn); font-weight: 600; }
+.ns td small { display: block; color: var(--ink-3); font-size: 11.5px; font-family: var(--ui); }
+.sum-details { margin-top: 16px; border-top: 1px solid var(--rule); padding-top: 12px; }
+.sum-details summary { cursor: pointer; font-size: 13px; color: var(--ink-2); }
+.sum-details section { margin-top: 10px; }
+.sum-details h4 { font-size: 12.5px; color: var(--ink-3); margin: 0 0 4px; font-weight: 600; }
+.sum-details ul { margin: 0; padding-left: 18px; } .sum-details li { font-size: 13.5px; margin: 2px 0; }
+.chart-key { font-size: 12px; color: var(--ink-3); margin-top: 6px; }
+.rain-grid { display: grid; grid-template-columns: 190px minmax(0, 1fr); gap: 14px 24px; align-items: start; }
+@media (max-width: 700px) { .rain-grid { grid-template-columns: minmax(0, 1fr); } }
+.gauge { border: 1px solid var(--rule); border-radius: 10px; padding: 10px 14px; background: var(--sunken); margin-bottom: 8px; }
+.gauge b { display: block; font-family: var(--num); font-size: 34px; font-weight: 500; line-height: 1.1; }
+.gauge b.hi { color: var(--info); } .gauge small { color: var(--ink-3); font-size: 12px; }
+.rain-why { margin: 0 0 10px; padding-left: 18px; font-size: 14px; } .rain-why li { margin: 2px 0; }
+.rq { border: 1px solid var(--rule-2); border-left: 4px solid var(--info); border-radius: 8px; padding: 10px 12px; margin-top: 8px; }
+.rq p { margin: 0 0 4px; font-size: 14.5px; font-weight: 500; } .rq small { display: block; color: var(--ink-3); font-size: 12.5px; margin-bottom: 8px; }
+.rq .btns { display: flex; flex-wrap: wrap; gap: 6px; }
+.prof { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin-top: 10px; }
+.prof input { font: inherit; padding: 6px 8px; border: 1px solid var(--rule-2); border-radius: 6px; background: var(--panel); color: var(--ink); width: 150px; }
+.ro-head small.id { color: var(--ink-3); font-weight: 400; font-size: 11.5px; margin-left: 6px; }
+.chart-key b { display: inline-block; width: 10px; height: 2px; vertical-align: middle; margin: 0 4px 0 10px; }
 .tiles { display: grid; gap: 10px; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); }
 .tile { background: var(--sunken); border: 1px solid var(--rule); border-radius: 8px; padding: 10px 12px; min-width: 0; }
 .tile b { display: block; font-family: var(--num); font-size: 26px; font-weight: 500; line-height: 1.15; }
@@ -281,6 +318,27 @@ dialog .row { display: flex; gap: 8px; justify-content: flex-end; }
 
     <section data-section="overview">
       <div class="readouts" id="readouts"><p class="empty">Waiting for the first readings.</p></div>
+      <div class="panel" id="rainPanel" hidden style="margin-bottom:18px">
+        <div class="ph"><h2>Rain</h2><span class="muted small" id="rainSub"></span></div>
+        <div class="rain-grid">
+          <div class="rain-odds"><div class="gauge"><b id="rainP">–</b><small>chance in the next 2 h</small></div>
+            <div class="small" id="rainVs"></div></div>
+          <div><ul class="rain-why" id="rainWhy"></ul><div id="rainQs"></div></div>
+        </div>
+        <details class="sum-details"><summary>How it learns</summary><div class="small" id="rainHow"></div></details>
+      </div>
+      <div class="panel" id="sumPanel" style="margin-bottom:18px">
+        <div class="ph"><h2 id="sumTitle">Today</h2>
+          <div class="seg" id="sumDay" role="group" aria-label="Day"><button data-d="" aria-pressed="true">Today</button><button data-d="yesterday" aria-pressed="false">Yesterday</button></div>
+          <button class="btn" id="sumRead" title="Read the summary aloud on this device">Read aloud</button>
+          <button class="btn admin-only" id="sumSpeak" hidden>Play on speaker</button></div>
+        <div class="sum-head" id="sumHead"><span class="dot"></span><span class="headline">Loading…</span></div>
+        <div class="sum-grid">
+          <div><h3>Needs attention</h3><div class="attn" id="sumAttn"></div></div>
+          <div><h3>Each node</h3><div class="scroll-x"><table class="tbl ns"><thead><tr><th>Node</th><th>Temperature</th><th>Humidity</th><th>Missed</th><th>Restarts</th></tr></thead><tbody id="sumNodes"></tbody></table></div></div>
+        </div>
+        <details class="sum-details" id="sumDetails"><summary>Details</summary><div id="sumBody"></div></details>
+      </div>
       <div class="two">
         <div class="panel">
           <div class="ph"><h2>Last 24 hours</h2></div>
@@ -291,6 +349,7 @@ dialog .row { display: flex; gap: 8px; justify-content: flex-end; }
               <div class="chart mini"><canvas id="ovChartH" aria-label="Humidity, last 24 hours" role="img"></canvas><div class="tip"></div></div></div>
           </div>
           <div class="legend" id="ovLegend"></div><div id="ovLegendH" hidden></div>
+          <div class="chart-key">Marks: <b style="background:var(--crit)"></b>problem <b style="background:rgba(192,54,44,.25);height:8px"></b>no data <b style="background:var(--info)"></b>rain <b style="background:var(--ink-3)"></b>online weather (dashed)</div>
         </div>
         <div class="panel">
           <div class="ph"><h2>Recent events</h2><a class="btn" href="#alerts">All events</a></div>
@@ -542,6 +601,7 @@ const S = { d: null, nodes: [], alerts: [], cfg: null, health: null, today: { te
 const palette = () => getComputedStyle(document.documentElement).getPropertyValue('--series').split(',').map(s => s.trim());
 const colorOf = {};
 function nodeColor(id) {
+  if (id === 'outside') return getComputedStyle(document.documentElement).getPropertyValue('--ink-3').trim() || '#7b8794';
   if (!(id in colorOf)) colorOf[id] = Object.keys(colorOf).length;
   const p = palette(); return p[colorOf[id] % p.length];
 }
@@ -565,7 +625,7 @@ function route() {
   if (view === 'alerts') events.load();
   if (view === 'hub') loadHub();
   if (view === 'power') intr.load();
-  if (view === 'overview') { ov.load(); loadRecent(); }
+  if (view === 'overview') { ov.load(); loadRecent(); sum.load(); }
   if (view === 'nodes') { renderNodes(); if (arg) focusNode(decodeURIComponent(arg)); }
   requestAnimationFrame(redrawCharts);
 }
@@ -638,6 +698,84 @@ function rangeBar(n, metric, unit) {
     <div class="track"><span class="span" style="left:${x(t.min)}%;width:${Math.max(1, x(t.max) - x(t.min))}%"></span><span class="now" style="left:${x(v)}%"></span></div>
     <div class="lbl"><span>today low ${t.min.toFixed(1)}${unit}</span><span>high ${t.max.toFixed(1)}${unit}</span></div></div>`;
 }
+function feelsLike(t, rh) {
+  if (t == null || rh == null || t < 26.7 || rh < 40) return t;
+  const f = t * 9 / 5 + 32;
+  const hi = -42.379 + 2.04901523 * f + 10.14333127 * rh - .22475541 * f * rh - .00683783 * f * f - .05481717 * rh * rh
+    + .00122874 * f * f * rh + .00085282 * f * rh * rh - .00000199 * f * f * rh * rh;
+  return (hi - 32) * 5 / 9;
+}
+function comfortWord(t, rh) {
+  if (t == null || rh == null) return null;
+  const a = 17.62, b = 243.12, gm = Math.log(rh / 100) + a * t / (b + t), dp = b * gm / (a - gm);
+  return rh < 30 ? 'dry' : dp >= 21 ? 'muggy' : (dp >= 18 || rh >= 70) ? 'humid' : t >= 30 ? 'hot' : t <= 18 ? 'cool' : 'comfortable';
+}
+function comfortTxt(n) {
+  if (n.is_pi || n.temp == null || n.hum == null || nodeState(n) !== 'online') return '';
+  const fl = feelsLike(n.temp, n.hum), c = comfortWord(n.temp, n.hum);
+  const bad = ['muggy', 'humid', 'hot', 'dry'].includes(c);
+  return `<span class="${bad ? 'w' : ''}">${c}${fl != null && fl - n.temp >= 1 ? `, feels ${fl.toFixed(0)}°` : ''}</span>`;
+}
+const lbl = n => n.label || n.id;
+const nodeLbl = id => lbl(S.nodes.find(n => n.id === id) || { id });
+const hm = ts => new Date(ts * 1000).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit', hour12: true });
+function vsOnline(n) {
+  const c = S.wx?.current;
+  if (n.place !== 'outdoor' || !c || c.temp == null || n.temp == null || nodeState(n) !== 'online') return '';
+  const d = n.temp - c.temp;
+  return Math.abs(d) < 1 ? 'matches online temp' : `${d > 0 ? '+' : '−'}${Math.abs(d).toFixed(1)}° vs online${d >= 5 ? ' (sun?)' : ''}`;
+}
+const WX_ICON = { clear: '☀️', 'mostly clear': '🌤️', 'partly cloudy': '⛅', overcast: '☁️', foggy: '🌫️' };
+function outsideCard() {
+  const w = S.wx; if (!w?.enabled || !w.current) return '';
+  const c = w.current, next = (w.hourly || []).find(h => h.ts > now() && ((h.precip || 0) >= 0.3 || (h.prob || 0) >= 60));
+  const icon = WX_ICON[c.desc] || (/(rain|drizzle|shower)/.test(c.desc || '') ? '🌧️' : /thunder/.test(c.desc || '') ? '⛈️' : '🌡️');
+  const today = (w.daily || []).find(d => d.day === isoDay(new Date()));
+  return `<button class="readout outside" data-id="outside" aria-label="Outside: ${num(c.temp)} degrees">
+    <div class="ro-head"><h3>${S.nodes.some(n => n.place === 'outdoor') ? 'Online weather' : 'Outside'}</h3><span>${esc(w.place || 'weather')}</span></div>
+    <div class="ro-vals"><span class="ro-t">${num(c.temp)}<small>°C</small></span>${c.hum != null ? `<span class="ro-h">${num(c.hum, 0)}<small>%RH</small></span>` : ''}</div>
+    <div class="ro-foot"><span>${icon} ${esc(c.desc || '')}</span>${today ? `<span>today ${num(today.lo, 0)}–${num(today.hi, 0)}°</span>` : ''}
+      ${next ? `<span class="w">rain likely ${new Date(next.ts * 1000).toDateString() === new Date().toDateString() ? '' : 'tomorrow '}${hm(next.ts)}</span>` : '<span>no rain expected soon</span>'}</div></button>`;
+}
+const rain = {
+  d: null,
+  async load() {
+    try { this.d = await api('/api/rain', { timeout: 15000 }); } catch { return; }
+    guard('rain', () => this.render());
+  },
+  render() {
+    const d = this.d, box = $('#rainPanel');
+    box.hidden = !d.enabled; if (!d.enabled) return;
+    const o = d.outlook, p = o ? Math.round(o.p * 100) : null;
+    $('#rainSub').textContent = o ? `${o.name}, learned from ${d.model.examples} moments (${Math.round(d.model.rain_examples)} with rain)` : 'Waiting for the outdoor node';
+    $('#rainP').textContent = p == null ? '–' : p + '%'; $('#rainP').className = p >= 50 ? 'hi' : '';
+    $('#rainVs').innerHTML = o ? (o.forecast != null ? `Forecast says ${Math.round(o.forecast)}%` : 'No forecast loaded') : '';
+    $('#rainWhy').innerHTML = !o ? '' : o.why.length ? o.why.map(w => `<li>${esc(w[0].toUpperCase() + w.slice(1))}</li>`).join('')
+      : `<li class="muted">Nothing on the ${esc(o.name.toLowerCase())} graph points to rain${o.dry_air ? ': the air is well away from saturation' : ''}.</li>`;
+    $('#rainQs').innerHTML = (d.open || []).map(q => `<div class="rq" data-id="${q.id}"><p>${esc(q.question)}</p><small>${esc(q.why)}</small>
+      <div class="btns admin-only"><button class="btn" data-a="yes">Yes, it rained</button><button class="btn" data-a="no">No, stayed dry</button><button class="btn" data-a="unsure">Not sure</button></div>
+      <small class="guest-only">Sign in as admin to answer.</small></div>`).join('');
+    $$('#rainQs [data-a]').forEach(b => b.onclick = async () => {
+      const id = b.closest('.rq').dataset.id;
+      try { const r = await api(`/api/rain/${id}/answer`, { method: 'POST', body: { answer: b.dataset.a } }); toast(r.thanks); }
+      catch (e) { toast(e.message); return; }
+      this.load(); sum.load();
+    });
+    const sc = d.score, m = d.model;
+    $('#rainHow').innerHTML = `<p>Every 15 minutes the hub looks at the shape of the ${esc(o?.name || 'outdoor')} graph (how fast humidity is climbing, whether it's cooling, how close the air is to saturation) and compares it with the online weather (city temperature and humidity, rain chance, pressure, cloud). It starts from a sensible built-in guess and retrains every 6 hours on what actually happened, with your answers counting three times as much.</p>
+      <p>${m.trained ? `Last trained ${hm(m.trained)} on ${m.examples} moments, ${Math.round(m.rain_examples)} of them just before rain.` : 'Not trained yet: using the built-in guess.'}
+      "It's raining" means humidity up ${m.signature.rise.toFixed(0)}% in an hour to at least ${m.signature.peak.toFixed(0)}% (tuned from your answers).</p>
+      ${sc ? `<p>Last 30 days: ${sc.rains ? `caught ${sc.caught} of ${sc.rains} rains` : 'no rain yet'} with ${sc.false_alarms} false alarm${sc.false_alarms === 1 ? '' : 's'}; the forecast alone ${sc.rains ? `caught ${sc.fc_caught} with` : 'had'} ${sc.fc_false_alarms}.</p>` : ''}
+      ${(d.recent || []).length ? `<p>Your answers: ${d.recent.slice(0, 6).map(r => `${esc(new Date(r.ts * 1000).toLocaleDateString([], { day: 'numeric', month: 'short' }))} ${esc(hm(r.ts))} ${r.answer === 'yes' ? 'rain' : r.answer === 'no' ? 'dry' : r.answer === 'agreed' ? 'rain (sensor and forecast agreed)' : 'not sure'}`).join(' · ')}</p>` : ''}`;
+  },
+};
+async function loadWeather() {
+  try { S.wx = await api('/api/weather?hours=192', { timeout: 15000 }); window.wxHourly = S.wx.enabled ? S.wx.hourly : null; }
+  catch { return; }
+  if (view === 'overview') guard('readouts', renderReadouts);
+  redrawCharts();
+}
+
 function renderReadouts() {
   const box = $('#readouts');
   if (!S.nodes.length) { box.innerHTML = '<p class="empty">Waiting for the first readings.</p>'; return; }
@@ -649,22 +787,22 @@ function renderReadouts() {
     const foot = st === 'hub'
       ? [`load ${esc(i.load?.[0] ?? '–')}`, `memory ${i.mem_total_mb ? Math.round(100 * i.mem_used_mb / i.mem_total_mb) + '%' : '–'}`, `up ${esc(dur(i.uptime_s) || '–')}`]
       : [st === 'fault' ? `<span class="bad">${n.temp_ts ? `sensor not reading, last value ${ago(n.temp_ts)}` : 'sensor not reading, no values received'}</span>` : n.status === 'online' ? `updated ${ago(n.temp_ts)}` : `<span class="bad">last seen ${ago(n.temp_ts)}</span>`,
-         i.rssi != null ? `signal ${esc(i.rssi)} dBm` : '', i.buffered ? `<span class="w">${esc(i.buffered)} readings waiting</span>` : ''];
-    return `<button class="readout ${st}" data-id="${esc(n.id)}" aria-label="${esc(n.id)}: ${t ?? 'no'} degrees, ${stTxt}">
-      <div class="ro-head"><h3>${esc(n.id)}</h3><span>${stTxt}</span></div>
+         comfortTxt(n), vsOnline(n), i.rssi != null ? `signal ${esc(i.rssi)} dBm` : '', i.buffered ? `<span class="w">${esc(i.buffered)} readings waiting</span>` : ''];
+    return `<button class="readout ${st}" data-id="${esc(n.id)}" aria-label="${esc(lbl(n))}: ${t ?? 'no'} degrees, ${stTxt}">
+      <div class="ro-head"><h3>${esc(lbl(n))}${n.place === 'outdoor' ? '<small class="id">outdoor</small>' : ''}</h3><span>${stTxt}</span></div>
       <div class="ro-vals">${t != null ? `<span class="ro-t">${t}<small>°C</small></span>` : '<span class="ro-t ro-dash">––</span>'}
         ${h != null && !n.is_pi ? `<span class="ro-h">${h}<small>%RH</small></span>` : ''}</div>
       ${rangeBar(n, 'temp', '°')}
       <div class="ro-foot">${foot.filter(Boolean).map(f => `<span>${f}</span>`).join('')}</div></button>`;
-  }).join('');
-  $$('.readout', box).forEach(b => b.onclick = () => location.hash = b.dataset.id === 'pi' ? '#hub' : `#nodes/${encodeURIComponent(b.dataset.id)}`);
+  }).join('') + outsideCard();
+  $$('.readout', box).forEach(b => b.onclick = () => location.hash = b.dataset.id === 'pi' ? '#hub' : b.dataset.id === 'outside' ? '#overview' : `#nodes/${encodeURIComponent(b.dataset.id)}`);
 }
 function renderTable() {
   const rows = espNodes();
   $('#ovTable').innerHTML = rows.length ? rows.map(n => {
     const st = nodeState(n), i = n.info || {}, td = S.today.temp?.[n.id];
     const cls = st === 'offline' ? 'off' : st === 'fault' ? 'fault' : n.status === 'online' ? '' : 'unk';
-    return `<tr class="click" data-id="${esc(n.id)}"><td><b>${esc(n.id)}</b></td>
+    return `<tr class="click" data-id="${esc(n.id)}"><td><b>${esc(lbl(n))}</b>${lbl(n) !== n.id ? `<small class="muted"> ${esc(n.id)}</small>` : ''}</td>
       <td><span class="state ${cls}"><i></i>${st === 'offline' ? 'Offline' : st === 'fault' ? 'Sensor not reading' : 'Online'}</span></td>
       <td class="n">${num(n.temp) != null ? num(n.temp) + ' °C' : '–'}</td><td class="n">${num(n.hum) != null ? num(n.hum) + ' %' : '–'}</td>
       <td class="n">${td ? `${td.min.toFixed(1)} – ${td.max.toFixed(1)} °C` : '–'}</td>
@@ -673,6 +811,57 @@ function renderTable() {
   }).join('') : '<tr><td colspan="9" class="empty">No nodes yet. Flash an ESP32 and it appears here within a minute.</td></tr>';
   $$('#ovTable tr.click').forEach(r => r.onclick = () => location.hash = `#nodes/${encodeURIComponent(r.dataset.id)}`);
 }
+const sum = {
+  day: '', d: null,
+  async load() {
+    try { this.d = await api('/api/summary' + (this.day ? `?day=${this.day}` : ''), { timeout: 15000 }); }
+    catch (e) { $('#sumBody').innerHTML = `<p class="empty">${esc(e.message)}</p>`; return; }
+    guard('summary', () => this.render());
+  },
+  render() {
+    const d = this.d, t = hm;
+    $('#sumTitle').textContent = d.label === 'today' ? 'Today' : d.label === 'yesterday' ? 'Yesterday' : d.label;
+    const head = $('#sumHead');
+    head.className = 'sum-head' + (d.critical ? ' crit' : d.attention.some(a => a.level !== 'crit') ? ' anomaly' : '');
+    head.querySelector('.headline').textContent = d.headline;
+    const live = (d.live || []).map(x => `<div class="note"><i></i><span>${esc(x.text)}<small>${x.icon === 'rain' ? 'Weather' : 'Tip'} · now</small></span></div>`).join('');
+    const crits = d.attention.filter(a => a.level === 'crit');
+    const rest = d.attention.filter(a => a.level !== 'crit');
+    const row = a => `<div class="${esc(a.level)}"><i></i><span>${esc(a.text)}
+        <small>${a.level === 'crit' ? 'Problem' : a.level === 'anomaly' ? 'Unusual' : 'Warning'} · ${t(a.ts)}</small></span></div>`;
+    d.attention = crits.concat(rest);
+    $('#sumAttn').innerHTML = crits.map(row).join('') + live + (rest.length ? rest.slice(0, 8).map(row).join('')
+        + (rest.length > 8 ? `<div class="warn"><i></i><span class="muted">${rest.length - 8} more in Details</span></div>` : '')
+      : ((live || crits.length || (d.insights || []).length) ? '' : '<div class="clear">Nothing unusual. Everything ran normally.</div>'));
+    const ins = (d.insights || []).filter(x => ['rain', 'sun', 'forecast'].includes(x.kind)).map(x => `<div class="note"><i></i><span>${esc(x.text)}<small>Insight · ${t(x.ts)}</small></span></div>`).join('');
+    if (ins) $('#sumAttn').insertAdjacentHTML('beforeend', ins);
+    const flag = (id, m) => d.attention.some(a => a.level === 'anomaly' && a.node === id && a.metric === m);
+    const cell = (e, m, u) => { const v = e[m]; if (!v) return '<td class="muted">–</td>';
+      return `<td class="n${flag(e.id, m) ? ' hi' : ''}">${v.lo.toFixed(m === 'temp' ? 1 : 0)} – ${v.hi.toFixed(m === 'temp' ? 1 : 0)} ${u}<small>low ${t(v.lo_t)} · high ${t(v.hi_t)}</small></td>`; };
+    $('#sumNodes').innerHTML = d.nodes.map(e => `<tr><td><b>${esc(e.name)}</b>${e.outdoor ? '<small>outdoor</small>' : ''}</td>${cell(e, 'temp', '°C')}${cell(e, 'hum', '%')}
+      <td class="n">${e.missing || 0}</td><td class="n">${e.restarts || 0}</td></tr>`).join('') || '<tr><td colspan="5" class="empty">No readings yet.</td></tr>';
+    $('#sumBody').innerHTML = d.sections.map(sec => `<section><h4>${esc(sec.title)}</h4><ul>${sec.lines.map(ln => `<li>${esc(ln)}</li>`).join('')}</ul></section>`).join('');
+    const sp = $('#sumSpeak'); sp.hidden = !d.speaker?.name; if (d.speaker?.name) sp.textContent = `Play on ${d.speaker.name}`;
+    window.chartMarks = d.label === 'today' ? d.marks : (window.chartMarks || []);
+    redrawCharts();
+  },
+};
+$$('#sumDay button').forEach(b => b.onclick = () => {
+  sum.day = b.dataset.d; $$('#sumDay button').forEach(x => x.setAttribute('aria-pressed', x === b)); sum.load();
+});
+$('#sumRead').onclick = () => {
+  if (!('speechSynthesis' in window)) return toast('This browser cannot read aloud');
+  if (speechSynthesis.speaking) { speechSynthesis.cancel(); $('#sumRead').textContent = 'Read aloud'; return; }
+  if (!sum.d) return;
+  const u = new SpeechSynthesisUtterance(sum.d.text); u.rate = 0.98; u.lang = 'en-GB';
+  const vs = speechSynthesis.getVoices(), gb = vs.filter(v => /en[-_]GB/i.test(v.lang));
+  u.voice = ['Google UK English Female', 'Libby', 'Sonia', 'Maisie', 'Serena', 'Kate', 'Martha', 'Stephanie', 'Female']
+    .map(n => gb.find(v => v.name.includes(n))).find(Boolean) || gb[0] || null;
+  u.onend = u.onerror = () => { $('#sumRead').textContent = 'Read aloud'; };
+  $('#sumRead').textContent = 'Stop'; speechSynthesis.speak(u);
+};
+$('#sumSpeak').onclick = () => act('/api/summary/speak', { day: sum.day || null }, `Playing on ${sum.d?.speaker?.name || 'the speaker'}…`);
+
 async function loadToday() {
   for (const m of ['temp', 'hum']) {
     try {
@@ -688,7 +877,7 @@ async function loadRecent() {
   try {
     const d = await api('/api/events?limit=6&level=crit,warn,ok');
     $('#ovEvents').innerHTML = d.events.length ? d.events.map(e => `<tr><td><div class="small muted"><span class="sev ${esc(e.level)}">${SEV_NAME[e.level] || esc(e.level)}</span>
-      ${when(e.ts)}, ${esc(e.node)}</div><div class="small" style="margin-top:3px">${esc(e.msg)}</div></td></tr>`).join('')
+      ${when(e.ts)}, ${esc(nodeLbl(e.node))}</div><div class="small" style="margin-top:3px">${esc(e.msg)}</div></td></tr>`).join('')
       : '<tr><td class="empty">Nothing has happened yet.</td></tr>';
   } catch (e) {  }
 }
@@ -718,7 +907,7 @@ function yAxis(g, lo, hi, P) {
   return Y;
 }
 const hiddenSeries = new Set(store.get('hiddenSeries', ['pi']));
-const seriesLabel = id => id === 'pi' ? 'Pi CPU' : id;
+const seriesLabel = id => id === 'pi' ? 'Pi CPU' : id === 'outside' ? `Online (${S.wx?.place || 'weather'})` : lbl(S.nodes.find(n => n.id === id) || { id });
 function redrawCharts() { [ovChart, ovChartH, hChart, hChartH, dChart, dChartH].forEach(c => c.draw()); }
 function legend(el, ids) {
   el.innerHTML = ids.map(id => `<button type="button" data-id="${esc(id)}" aria-pressed="${!hiddenSeries.has(id)}"
@@ -739,6 +928,11 @@ function LineChart(cv, legendEl) {
   function draw() {
     const g = setupCanvas(cv); if (!g) return;
     const all = Object.entries(data?.series || {}).filter(([id]) => !(data.metric === 'hum' && id === 'pi'));
+    if (data && window.wxHourly && (data.metric === 'temp' || data.metric === 'hum')) {
+      const op = window.wxHourly.filter(h => h.ts >= data.start - 3600 && h.ts <= Math.min(data.end, now()) && h[data.metric] != null)
+        .map(h => [h.ts, h[data.metric]]);
+      if (op.length > 1) all.push(['outside', op]);
+    }
     legend(legendEl, all.map(s => s[0]));
     const series = all.filter(([id]) => !hiddenSeries.has(id));
     if (!series.length) { g.ctx.fillStyle = g.muted; g.ctx.font = g.font;
@@ -754,13 +948,27 @@ function LineChart(cv, legendEl) {
     for (let t = Math.ceil((x0 - off) / xs) * xs + off; t <= x1; t += xs) {
       const d = new Date(t * 1000), x = X(t);
       if (x < P.l + 22 || x > g.W - P.r - 26) continue;
-      g.ctx.fillText(xs >= 86400 ? d.toLocaleDateString([], { day: 'numeric', month: 'short' }) : d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }), x, g.H - P.b + 7);
+      g.ctx.fillText(xs >= 86400 ? d.toLocaleDateString([], { day: 'numeric', month: 'short' }) : d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit', hour12: true }), x, g.H - P.b + 7);
+    }
+    for (const m of (window.chartMarks || [])) {
+      if (m.ts < x0 || m.ts > x1 || m.level === 'anomaly') continue;
+      const xa = X(m.ts);
+      g.ctx.save();
+      if (m.level === 'gap' && m.end) {
+        g.ctx.fillStyle = 'rgba(192, 54, 44, .07)'; g.ctx.fillRect(xa, P.t, Math.max(2, X(Math.min(m.end, x1)) - xa), g.H - P.t - P.b);
+      } else {
+        g.ctx.strokeStyle = getComputedStyle(document.documentElement).getPropertyValue(m.level === 'crit' ? '--crit' : m.level === 'rain' ? '--info' : '--warn');
+        g.ctx.globalAlpha = .75; g.ctx.lineWidth = 1.5; if (m.level !== 'crit') g.ctx.setLineDash([3, 3]);
+        g.ctx.beginPath(); g.ctx.moveTo(xa, P.t); g.ctx.lineTo(xa, g.H - P.b); g.ctx.stroke();
+      }
+      g.ctx.restore();
     }
     const fillMax = S.cfg?.fill_s ?? 900, filled = {};
     for (const [id, pts] of series) {
       const d = pts.slice(1).map((p, i) => p[0] - pts[i][0]).sort((a, b) => a - b);
       const gap = Math.max((data.step || 10) * 3, 3 * (d[d.length >> 1] || 0), 120);
-      g.ctx.strokeStyle = nodeColor(id); g.ctx.lineWidth = 2; g.ctx.lineJoin = 'round'; g.ctx.beginPath();
+      g.ctx.strokeStyle = nodeColor(id); g.ctx.lineWidth = id === 'outside' ? 1.5 : 2; g.ctx.lineJoin = 'round';
+      g.ctx.setLineDash(id === 'outside' ? [6, 4] : []); g.ctx.beginPath();
       let prev = null; filled[id] = [];
       for (const p of pts) {
         const [t, v] = p;
@@ -770,7 +978,8 @@ function LineChart(cv, legendEl) {
         } else g.ctx.lineTo(X(t), Y(v));
         prev = p;
       }
-      g.ctx.stroke();
+      g.ctx.stroke(); g.ctx.setLineDash([]);
+      if (id === 'outside') { filled[id] = []; continue; }
       if (filled[id].length) {
         g.ctx.save(); g.ctx.setLineDash([4, 4]); g.ctx.globalAlpha = .6; g.ctx.beginPath();
         for (const [ta, va, tb, vb] of filled[id]) { g.ctx.moveTo(X(ta), Y(va)); g.ctx.lineTo(X(tb), Y(vb)); }
@@ -941,7 +1150,7 @@ function buildCard(n) {
   const el = document.createElement('article');
   el.className = 'panel node'; el.dataset.id = n.id; el.id = 'node-' + n.id;
   el.innerHTML = `
-    <div class="ro-head"><h3>${esc(n.id)}</h3><span class="state"><i></i><b class="st"></b></span></div>
+    <div class="ro-head"><h3><span class="nm">${esc(lbl(n))}</span><small class="id">${esc(n.id)}</small></h3><span class="state"><i></i><b class="st"></b></span></div>
     <div class="ro-vals"><span class="ro-t tv"></span><span class="ro-h hv"></span></div>
     <div class="muted small ago"></div>
     <dl class="kv main-kv"></dl>
@@ -953,14 +1162,21 @@ function buildCard(n) {
         <button class="btn danger" data-cmd="reboot">Restart</button>
         <button class="btn danger forget" hidden>Remove from dashboard</button>
       </div>
+      <div class="prof"><input class="pname" maxlength="24" placeholder="Name, e.g. Balcony" value="${esc(n.named ? n.label : '')}" aria-label="Name">
+        <select class="btn pplace" aria-label="Where"><option value="indoor">Indoor</option><option value="outdoor"${n.place === 'outdoor' ? ' selected' : ''}>Outdoor</option></select>
+        <button class="btn psave">Save name</button></div>
     </div>
     <details class="tech"><summary>Technical details</summary><dl class="kv tech-kv"></dl>
       <table class="tbl" style="margin-top:8px"><tbody class="ev"></tbody></table></details>`;
   const path = p => `/api/nodes/${encodeURIComponent(n.id)}/${p}`;
+  $('.psave', el).onclick = async () => {
+    if (await act(path('profile'), { name: $('.pname', el).value.trim(), place: $('.pplace', el).value }, 'Saved. It will use this name everywhere, including Google Home.'))
+      { refreshOnce(); sum.load(); rain.load(); }
+  };
   const range = $('input[type=range]', el), out = $('output', el);
   range.oninput = () => out.textContent = range.value;
   range.onchange = () => act(path('cmd'), { cmd: 'brightness ' + range.value }, 'Brightness set');
-  $('select', el).onchange = e => act(path('cmd'), { cmd: 'interval ' + e.target.value }, 'Report interval set');
+  $('.btns select', el).onchange = e => act(path('cmd'), { cmd: 'interval ' + e.target.value }, 'Report interval set');
   $$('[data-cmd]', el).forEach(b => b.onclick = () => {
     const c = b.dataset.cmd;
     if (c === 'reboot' && !confirm(`Restart ${n.id}? It will be offline for about 10 seconds.`)) return;
@@ -978,6 +1194,7 @@ function updateCard(el, n) {
   $('.st', el).textContent = st === 'offline' ? 'Offline' : st === 'fault' ? 'Sensor not reading' : 'Online';
   $('.tv', el).innerHTML = !stale && num(n.temp) != null ? `${num(n.temp)}<small>°C</small>` : '<span class="ro-dash">––</span>';
   $('.hv', el).innerHTML = !stale && num(n.hum) != null ? `${num(n.hum)}<small>%RH</small>` : '';
+  $('.nm', el).textContent = lbl(n); $('.id', el).textContent = n.id + (n.place === 'outdoor' ? ' · outdoor' : '');
   $('.ago', el).textContent = n.temp_ts ? (online ? `Last reading ${ago(n.temp_ts)}` : `Last seen ${ago(n.temp_ts)}`) : 'No readings yet';
   const td = S.today.temp?.[n.id], th = S.today.hum?.[n.id];
   const main = [
@@ -993,13 +1210,13 @@ function updateCard(el, n) {
   $('.tech-kv', el).innerHTML = tech.filter(r => r[1]).map(([k, v]) => `<dt>${k}</dt><dd>${v}</dd>`).join('');
   const m = /brightness=(\d+)/.exec(n.led || ''), range = $('input[type=range]', el);
   if (m && document.activeElement !== range) { range.value = m[1]; $('output', el).textContent = m[1]; }
-  const sel = $('select', el);
+  const sel = $('.btns select', el);
   if (i.interval_s && document.activeElement !== sel) {
     if (![...sel.options].some(o => o.value == i.interval_s)) sel.add(new Option(`Report every ${i.interval_s} s`, i.interval_s));
     sel.value = String(i.interval_s);
   }
   $('.forget', el).hidden = online;
-  $$('.ctrl button:not(.forget), .ctrl input, .ctrl select', el).forEach(c => c.disabled = !online);
+  $$('.ctrl .btns button:not(.forget), .ctrl .slider input, .ctrl .btns select', el).forEach(c => c.disabled = !online);
   $('.ev', el).innerHTML = (n.events || []).slice(0, 8).map(e => `<tr><td class="muted small" style="white-space:nowrap">${when(e.ts)}</td><td class="small">${esc(e.msg)}</td></tr>`).join('')
     || '<tr><td class="muted small">No messages from this node yet</td></tr>';
 }
@@ -1061,7 +1278,7 @@ const events = {
     try { d = await api('/api/events?' + p); } catch (e) { $('#evRows').innerHTML = `<tr><td colspan="5" class="empty">${esc(e.message)}</td></tr>`; return; }
     $('#evRows').innerHTML = d.events.length ? d.events.map(e => `<tr><td class="muted small" style="white-space:nowrap">${when(e.ts)}</td>
       <td><span class="sev ${esc(e.level)}">${SEV_NAME[e.level] || esc(e.level)}</span></td><td class="small">${esc(CAT_NAME[e.category] || e.category)}</td>
-      <td class="small">${esc(e.node)}</td><td>${esc(e.msg)}</td></tr>`).join('')
+      <td class="small">${esc(nodeLbl(e.node))}</td><td>${esc(e.msg)}</td></tr>`).join('')
       : '<tr><td colspan="5" class="empty">No events match these filters.</td></tr>';
     $('#evPos').textContent = d.total ? `${d.offset + 1}–${d.offset + d.events.length} of ${d.total}` : '';
     $('#evPrev').disabled = d.offset === 0; $('#evNext').disabled = d.offset + d.events.length >= d.total;
@@ -1173,6 +1390,11 @@ function renderHub() {
     line('Adafruit IO', !aio.enabled ? 'info' : aio.last_error ? 'warn' : 'ok',
       !aio.enabled ? 'Not set up. Run setup-adafruit.sh on the Pi.' : aio.last_error ? esc(aio.last_error) : `Uploading ${esc((aio.feeds || []).length)} feeds, last ${ago(aio.last_ok)}.`,
       aio.enabled && aio.user ? ` <a href="https://io.adafruit.com/${encodeURIComponent(aio.user)}/feeds" target="_blank" rel="noopener">Open feeds</a>` : '') +
+    line('Google Home', !d.google?.enabled ? 'info' : d.google.linked ? 'ok' : 'warn',
+      !d.google?.enabled ? 'Not set up. Run setup-google.sh on the Pi.' : !d.google.linked ? 'Set up but not linked yet. Link it in the Google Home app.'
+        : `Linked${d.google.last_request ? `, last asked ${ago(d.google.last_request)}` : ''}. ${d.google.live
+          ? (d.google.live_error ? `Live updates failing: ${esc(d.google.live_error)}.` : `Live updates on${d.google.last_report ? `, last sent ${ago(d.google.last_report)}` : ''}.`)
+          : 'Live updates off (add a service account key to turn them on).'}`) +
     line('Phone notifications', !nt.channels?.length ? 'info' : nt.last_error ? 'warn' : 'ok',
       !nt.channels?.length ? 'Not set up. Run setup-alerts.sh on the Pi.' : nt.last_error ? `Sending failed: ${esc(nt.last_error)}. Retrying.` : `Via ${esc(nt.channels.join(' and '))}${nt.last_ok ? `, last sent ${ago(nt.last_ok)}` : ''}.`);
   const em = d.email || {};
@@ -1222,7 +1444,7 @@ api('/api/me').then(m => { pwSet = m.password_set; applyRole(m.role); }).catch((
 const REPO_URL = 'https://github.com/Gautham-Dev007/IoT_Pi32';
 function shareUrl() { return (S.cfg?.public_url || location.origin).replace(/\/+$/, ''); }
 async function openShare() {
-  if (!S.cfg) { try { S.cfg = await api('/api/config'); } catch { /* use this address */ } }
+  if (!S.cfg) { try { S.cfg = await api('/api/config'); } catch {  } }
   const url = shareUrl(), isPublic = !!S.cfg?.public_url || location.protocol === 'https:';
   try {
     const q = qrcode(0, 'M'); q.addData(url); q.make();
@@ -1253,11 +1475,14 @@ $('#installBtn').onclick = async () => {
   if (isIOS) toast('In Safari: tap Share, then "Add to Home Screen".');
 };
 
+loadWeather(); rain.load();
+setInterval(() => { if (!document.hidden) loadWeather(); }, 600000);
+setInterval(() => { if (!document.hidden && view === 'overview') rain.load(); }, 300000);
 route();
 poll();
 loadToday();
 loadHub();
-setInterval(() => { if (document.hidden) return; loadToday(); if (view === 'overview') { ov.load(); loadRecent(); } }, 60000);
+setInterval(() => { if (document.hidden) return; loadToday(); if (view === 'overview') { ov.load(); loadRecent(); sum.load(); } }, 60000);
 setInterval(() => { if (document.hidden) return; if (view === 'history' && !hist.day) hist.load(); if (view === 'alerts') events.load(); if (view === 'hub') loadHub(); if (view === 'power') intr.load(); }, 60000 / 3);
 document.addEventListener('visibilitychange', () => { if (!document.hidden) route(); });
 </script>

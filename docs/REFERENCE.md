@@ -22,6 +22,8 @@ Everything you can run, set or call. For an overview and setup steps, see the [R
    1. [Read](#71-read)
    2. [Downloads](#72-downloads)
    3. [Actions](#73-actions)
+   4. [Google Home](#74-google-home)
+8. [Rain predictor](#8-rain-predictor)
 
 ---
 
@@ -64,13 +66,18 @@ take `<node|all>` act on one node or every node.
 | `iothub interval <node\|all> <seconds>` | report interval (2–3600) |
 | `iothub brightness <node\|all> <0-255>` | status LED brightness |
 | `iothub reboot-node <node\|all>` | restart the ESP32 |
-| `iothub rename <node> <name>` | give a node a new name (it restarts) |
+| `iothub name <node> <Name> [indoor\|outdoor]` | friendly name and place, e.g. `iothub name node1 Balcony outdoor`; the ID and history stay the same; `-` as the name removes it |
+| `iothub rename <node> <name>` | change the node's ID itself (it restarts; old readings stay under the old ID) |
 | `iothub ota <node\|all> <file.bin>` | push a firmware image |
 
 ### 2.3 Reports and data
 
 | Command | |
 | --- | --- |
+| `iothub summary [yesterday\|YYYY-MM-DD]` | the day in plain words: critical problems first, highs and lows with times, outages, restarts, warnings |
+| `iothub weather` | outside now, the next two days, and current tips |
+| `iothub rain` | chance of rain in the next 2 h at the outdoor node, the reasons, the predictor's score, questions waiting |
+| `iothub rain yes\|no\|unsure` | answer the latest "did it rain?" question |
 | `iothub report [hours] [email …]` | email a report with charts now (default: last 24 h to the saved recipients) |
 | `iothub export [days]` | readings as CSV in `~/iothub-exports` |
 | `iothub backup` | copy of the database to `~/iothub-data/backups` |
@@ -115,6 +122,11 @@ In `~/.config/iothub/` on the Pi, written by the setup scripts. Apply changes wi
 | `alerts.env` | `setup-alerts.sh` | ntfy / Telegram, temperature and humidity limits |
 | `adafruit.env` | `setup-adafruit.sh` | Adafruit IO username, key, `AIO_INCLUDE_PI` |
 | `email.env` | `setup-email.sh` | sender, recipients, daily report time |
+| `google.env` | `setup-google.sh` | Google Home link credentials, project ID, `GH_LED`, `GH_STATS`, `GH_INCLUDE_PI` |
+| `google-service-account.json` | you | optional Home Graph key: live updates and automatic new-node sync |
+| `weather.env` | `setup-weather.sh` | `WEATHER_LAT`, `WEATHER_LON`, `WEATHER_PLACE`, `RAIN_ALERTS`, `TIP_ALERTS`, `SUMMARY_TIME` (evening summary to the phone, default `21:00`) |
+| `speaker.env` | `setup-speaker.sh` | `SPEAKER_NAME`, `SUMMARY_TIME` (daily spoken briefing), `SPEAK_ENGINE` (`piper` or `gtts`), `PIPER_VOICE` (default `en_GB-jenny_dioco-medium`), `SPEAK_TLD`, `SUMMARY_PUSH` |
+| `nodes.env` | dashboard (node card) or `iothub name` | one line per node: `node1=Balcony\|outdoor`. Read live, no restart needed |
 | `storage.env` | you | storage options below |
 
 ### 4.2 Storage options
@@ -136,6 +148,9 @@ All in `pi/`, run on the Pi as your normal user. Each is safe to run again to ch
 | `setup-alerts.sh` | ntfy / Telegram notifications and limits |
 | `setup-email.sh` | email reports via a Gmail app password |
 | `setup-adafruit.sh` | Adafruit IO upload |
+| `setup-weather.sh` | weather location, rain alerts, tips, summary time |
+| `setup-speaker.sh` | optional spoken summary on a Google speaker (needs `SPEAKER_ENABLED=yes`) |
+| `setup-google.sh` | Google Home link (prints the values for the Google Home Developer Console) |
 | `setup-network.sh` | Ethernet mode access point `IoTHub` |
 | `protect-sd.sh` | logs in RAM, `noatime`, no SD swap, time zone |
 | `optimize-boot.sh` | trims boot-time services and hardware probing |
@@ -184,6 +199,9 @@ from `/api/login`.
 | `GET /api/daily?days=30&metric=hum` | daily min/avg/max |
 | `GET /api/events` | event log; filters `category`, `level`, `node` (comma-separated), `q` (text), `since` (epoch), `limit`, `offset` |
 | `GET /api/interruptions?days=30` | outages, gaps with causes, node restarts, completeness |
+| `GET /api/summary?day=yesterday` | day summary: `headline`, `text` (short spoken briefing), `attention` (problems, anomalies, warnings), `nodes` (highs/lows with times), `marks` (for charts), `sections` and `detail_text` |
+| `GET /api/weather?hours=48` | outside now, hourly history and forecast, daily forecast, live insights |
+| `GET /api/rain` | rain `outlook` (chance in the next 2 h, reasons), `open` questions, your `recent` answers, `model` (examples, weights, "it's raining" signature), `score` (rains caught and false alarms, next to the forecast) |
 | `GET /api/health` | background jobs, storage, broker |
 | `GET /api/config` | limits and settings (no secrets) |
 | `GET /api/me` | current role |
@@ -205,6 +223,79 @@ from `/api/login`.
 | `POST /api/logout` | – | end it |
 | `POST /api/nodes/<id>/cmd` | `{"cmd": "identify"}` | `reboot`, `info`, `identify`, `brightness N`, `interval S` |
 | `POST /api/nodes/<id>/forget` | – | remove a node from the list and clear its retained topics |
+| `POST /api/nodes/<id>/profile` | `{"name": "Balcony", "place": "outdoor"}` | friendly name and place; empty name = back to the ID |
+| `POST /api/rain/<id>/answer` | `{"answer": "yes"}` | `yes`, `no` or `unsure`. Also accepts `?a=yes&sig=…` without a session: the signed links in the phone notification's buttons |
+| `POST /api/rain/retrain` | – | retrain the rain predictor now (it does this every 6 h anyway) |
 | `POST /api/alerts/<key>/ack` | – | acknowledge / un-acknowledge an alert |
 | `POST /api/alerts/test` | – | send a test notification |
+| `POST /api/summary/speak` | `{"day": "yesterday"}` or `{"text": "…"}` | speak on the Google speaker |
 | `POST /api/report/send` | `{"to": "a@b.c", "hours": 24}` | email a report |
+
+### 7.4 Google Home
+
+Used by Google, not by people. Enabled by `setup-google.sh`.
+
+| Endpoint | |
+| --- | --- |
+| `GET/POST /google/authorize` | account linking page; approved with the admin password |
+| `POST /google/token` | OAuth 2.0 token endpoint (authorization code and refresh) |
+| `POST /google/fulfillment` | SYNC (device list), QUERY (readings), EXECUTE (actions below), DISCONNECT |
+
+What Google Home sees. A node uses its friendly name if you gave it one ("Balcony"), otherwise the
+spoken form of its ID (`node1` → "node 1"); "node 1" stays a nickname either way. After renaming,
+say "sync my devices" (automatic if live updates are set up).
+
+| Device | Type | Voice examples |
+| --- | --- | --- |
+| `node 1` | sensor: temperature, humidity | "what's the temperature of node 1", "what's the humidity of node 1" |
+| `node 1 light` | light: the status LED | "turn off node 1 light", "set node 1 light to 20%" |
+| `Find node 1`, `Restart node 1` | scenes | "activate find node 1", "activate restart node 1" |
+| `node 1 high`, `node 1 low` | sensors: today's highest / lowest | "what's the temperature of node 1 high" |
+| `hub` | sensor: Pi CPU temperature | "what's the temperature of the hub" |
+| `Day summary` | scene: spoken briefing on the speaker, text to the phone | "activate day summary" |
+| `Send hub report` | scene (only if email is set up) | "activate send hub report" |
+| `Find all nodes` | scene | "activate find all nodes" |
+
+Google only accepts commands that suit a device's type, so readings, the LED and actions are separate devices.
+For shorter phrases ("find node 1", "turn off node 1"), add routines in the Google Home app with a
+"When I say…" starter.
+
+Options in `google.env`: `GH_LED`, `GH_STATS`, `GH_INCLUDE_PI` (all `yes` by default). After changing them, run
+`iothub restart` and say "sync my devices".
+
+**Reminders and summaries:** set `SUMMARY_TIME` with `setup-speaker.sh` for a daily spoken briefing, or create a
+routine with any starter and "activate day summary" as the action.
+
+A node whose sensor isn't reading answers as needing repair; an offline node as offline.
+
+## 8. Rain predictor
+
+Works when at least one node is marked **outdoor** (node card on the dashboard, or
+`iothub name node1 Balcony outdoor`). Weather (`setup-weather.sh`) makes it much better but isn't required.
+
+**What it looks at.** Every 15 minutes, from the outdoor node's graph: humidity level, how much it rose in the
+last hour and three hours, how much the temperature changed in the last hour, and how close the air is to
+saturation (temperature minus dew point). From the online weather: city temperature and humidity (the sensor
+compared with them), rain chance and rain in the next two hours, pressure change over three hours, cloud cover.
+
+**How it learns.** A small logistic regression, retrained every 6 hours on the last 60 days, sampled every 30 min.
+Each moment is labelled "rain started within two hours" or "stayed dry" from what happened afterwards:
+rain that both the forecast and the sensor saw, or that you confirmed, counts as rain; your "no, it stayed dry"
+answers count as dry. Your answers weigh three times as much. With little data it stays close to a built-in
+starting guess and moves away as examples come in.
+
+**When it asks.** After a rain episode where the forecast and the sensor disagreed, or where it predicted rain
+(60%+) and nothing else confirmed it, and for every episode until you've answered six. Questions go to the phone
+(ntfy buttons answer them directly, at most 3 a day, between 7 AM and 10 PM) and wait on the dashboard for two
+days. Episodes where both agree are recorded as rain without asking.
+
+**"It's raining now".** Humidity up 10% in an hour to at least 85%, by default. Once you've answered at least three
+yes and three no, the thresholds move to sit between the two (6–25% rise, 80–97% peak).
+
+**Outdoor wording.** For outdoor nodes the hub skips indoor tips (open a window, mould) and humidity or daytime
+temperature jumps aren't flagged as unusual, since sun, shade and rain cause them. Instead it reports rain now or
+coming, good drying weather, when the sun is on the sensor (5°+ above the air temperature), and how the node
+compares with the online temperature out of the sun.
+
+Files: `~/iothub-data/rain_model.json` (current weights). Tables: `rain_checks` (episodes and your answers),
+`rain_preds` (every prediction, kept 120 days, used for the score).

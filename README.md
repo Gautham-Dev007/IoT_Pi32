@@ -53,7 +53,12 @@ built to keep every reading through Wi-Fi drops and power cuts.
 | **No lost readings** | Nodes store up to 8000 readings in flash while the hub is away, then send them back. After every reconnect they also resend their last ~6 minutes, so readings that seemed sent just before a power cut aren't lost. The hub keeps only the ones it doesn't have. |
 | **Dashboard anywhere** | Live readings, any-day history, daily min/avg/max, alerts, interruptions and hub health. Shared publicly over HTTPS with Tailscale Funnel, guest view by default, admin sign-in for controls. Installs as an app on phones and desktops. |
 | **Knows what went wrong** | Every Pi power cut, reboot and crash is recorded with downtime, boot time and the readings lost per node. Node restarts include the reason (power on, brownout, crash, update). Every gap in the data gets a likely cause. |
+| **Day summary** | A short, friendly briefing: problems first, then the outdoor weather, each node's highs, comparisons with yesterday and the week, comfort, and one or two things worth knowing. Sent to the phone every evening, on the dashboard with Read aloud, and at the top of the email report. |
+| **Weather insights** | Local weather from Open-Meteo (free) explains what the sensors see: a humidity rise just before rain, rooms warmer than outside, tomorrow's forecast. Phone alerts when rain looks likely soon, plus tips for damp air, heat and when to open a window. Outdoor temperature is drawn on every chart. |
+| **Rain predictor** | Mark a node as outdoor (say, "Balcony") and it becomes a little weather station. The hub learns what the graph looks like before rain (humidity climbing, cooling, air near saturation), weighs it against the online weather, and gives the chance of rain in the next two hours with the reasons. When it isn't sure whether it rained, it asks you: buttons in the phone notification or on the dashboard. It retrains on your answers and keeps score against the plain forecast. |
+| **Friendly names** | Call a node "Balcony" or "Bedroom" and set it indoor or outdoor, from its card on the dashboard or with `iothub name`. The ID and history stay the same; summaries, charts and Google Home use the name. |
 | **Alerts and reports** | Push notifications with ntfy (free, no account) and/or Telegram. Email reports with charts to any address, daily or on demand. |
+| **Google Home** | Every node is a sensor in Google Home ("what's the temperature of node 1"), its LED a light ("turn off node 1 light"), plus "find" and "restart" scenes, today's high and low, and the hub. No Matter hub needed. |
 | **Updates over Wi-Fi** | `./deploy.sh ota node1` builds on the laptop, hands the image to the Pi and the node pulls it from there. If the new firmware can't reach the hub it rolls back by itself. |
 | **Kind to the SD card** | Readings are batched in RAM and written once a minute, logs live in RAM, raw data is kept 30 days, daily summaries forever. |
 | **Works without a router** | Plug an Ethernet cable into the Pi and it becomes the access point for the nodes. Nodes find the hub on their own: gateway, mDNS, then last known address. |
@@ -101,6 +106,7 @@ flowchart LR
     H --> A[Adafruit IO]
     H --> N[ntfy / Telegram]
     H --> E[email reports]
+    H <-->|HTTPS| G[Google Home]
     LT[laptop] -- deploy.sh ota --> FW
 ```
 
@@ -204,6 +210,9 @@ The dashboard is now at `http://<pi>:8080`.
 | `setup-alerts.sh` | ntfy / Telegram notifications and temperature / humidity limits |
 | `setup-email.sh` | email reports (sent from a Gmail account with an app password) |
 | `setup-adafruit.sh` | upload to Adafruit IO (free plan limits respected) |
+| `setup-weather.sh` | local weather, rain alerts, tips and the evening summary time |
+| `setup-speaker.sh` | optional: also speak the summary on a Google speaker (off unless `SPEAKER_ENABLED=yes`) |
+| `setup-google.sh` | Google Home: nodes appear as sensors, readable by voice (needs the Funnel link) |
 | `setup-network.sh` | Ethernet mode: the Pi runs the `IoTHub` Wi-Fi for the nodes |
 | `protect-sd.sh` | fewer SD card writes, time zone (reboot after) |
 | `optimize-boot.sh` | faster boot for a headless Pi (reboot after) |
