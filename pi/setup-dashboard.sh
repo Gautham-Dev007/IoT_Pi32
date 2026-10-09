@@ -5,7 +5,7 @@ cd "$(dirname "$0")"
 [[ -f $HOME/.config/iothub/mqtt.env ]] || { echo "run setup-ota.sh first (it saves the MQTT login)"; exit 1; }
 
 echo "Installing packages..."
-sudo apt-get install -y -qq python3-flask python3-paho-mqtt python3-waitress >/dev/null
+sudo apt-get install -y -qq python3-flask python3-paho-mqtt python3-waitress python3-cryptography >/dev/null
 
 APP="$HOME/iothub-app"
 mkdir -p "$APP/static"

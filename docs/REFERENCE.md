@@ -23,7 +23,10 @@ Everything you can run, set or call. For an overview and setup steps, see the [R
    2. [Downloads](#72-downloads)
    3. [Actions](#73-actions)
    4. [Google Home](#74-google-home)
-8. [Rain predictor](#8-rain-predictor)
+8. [Predictions](#8-predictions)
+   1. [Rain](#81-rain)
+   2. [Temperature, dew and SD card](#82-temperature-dew-and-sd-card)
+9. [App notifications](#9-app-notifications)
 
 ---
 
@@ -78,6 +81,7 @@ take `<node|all>` act on one node or every node.
 | `iothub weather` | outside now, the next two days, and current tips |
 | `iothub rain` | chance of rain in the next 2 h at the outdoor node, the reasons, the predictor's score, questions waiting |
 | `iothub rain yes\|no\|unsure` | answer the latest "did it rain?" question |
+| `iothub outlook` | tonight's low and tomorrow's high per node, dew, how accurate past calls were, SD card outlook |
 | `iothub report [hours] [email …]` | email a report with charts now (default: last 24 h to the saved recipients) |
 | `iothub export [days]` | readings as CSV in `~/iothub-exports` |
 | `iothub backup` | copy of the database to `~/iothub-data/backups` |
@@ -127,6 +131,7 @@ In `~/.config/iothub/` on the Pi, written by the setup scripts. Apply changes wi
 | `weather.env` | `setup-weather.sh` | `WEATHER_LAT`, `WEATHER_LON`, `WEATHER_PLACE`, `RAIN_ALERTS`, `TIP_ALERTS`, `SUMMARY_TIME` (evening summary to the phone, default `21:00`) |
 | `speaker.env` | `setup-speaker.sh` | `SPEAKER_NAME`, `SUMMARY_TIME` (daily spoken briefing), `SPEAK_ENGINE` (`piper` or `gtts`), `PIPER_VOICE` (default `en_GB-jenny_dioco-medium`), `SPEAK_TLD`, `SUMMARY_PUSH` |
 | `nodes.env` | dashboard (node card) or `iothub name` | one line per node: `node1=Balcony\|outdoor`. Read live, no restart needed |
+| `vapid.pem` | the hub, automatically | private key that signs app notifications. Keep it: a new key means every device has to turn notifications on again |
 | `storage.env` | you | storage options below |
 
 ### 4.2 Storage options
@@ -201,6 +206,8 @@ from `/api/login`.
 | `GET /api/interruptions?days=30` | outages, gaps with causes, node restarts, completeness |
 | `GET /api/summary?day=yesterday` | day summary: `headline`, `text` (short spoken briefing), `attention` (problems, anomalies, warnings), `nodes` (highs/lows with times), `marks` (for charts), `sections` and `detail_text` |
 | `GET /api/weather?hours=48` | outside now, hourly history and forecast, daily forecast, live insights |
+| `GET /api/outlook` | per node: `tonight` (low, time, forecast), `tomorrow` (high/low), `dew`, `series` (next 24 h: time, expected, forecast); `score` (average error of past calls vs the baseline); `disk` (GB a month, days until nearly full) |
+| `GET /api/push` | app notifications: `enabled`, public `key`, devices; `?endpoint=` adds this device's choices as `this` |
 | `GET /api/rain` | rain `outlook` (chance in the next 2 h, reasons), `open` questions, your `recent` answers, `model` (examples, weights, "it's raining" signature), `score` (rains caught and false alarms, next to the forecast) |
 | `GET /api/health` | background jobs, storage, broker |
 | `GET /api/config` | limits and settings (no secrets) |
@@ -226,6 +233,9 @@ from `/api/login`.
 | `POST /api/nodes/<id>/profile` | `{"name": "Balcony", "place": "outdoor"}` | friendly name and place; empty name = back to the ID |
 | `POST /api/rain/<id>/answer` | `{"answer": "yes"}` | `yes`, `no` or `unsure`. Also accepts `?a=yes&sig=…` without a session: the signed links in the phone notification's buttons |
 | `POST /api/rain/retrain` | – | retrain the rain predictor now (it does this every 6 h anyway) |
+| `POST /api/push/subscribe` | `{"subscription": {…}, "prefs": {"problems": true, "rain": true, "summary": true, "tips": false, "quiet": true}, "label": "Android app"}` | add or update a device (the browser's `PushSubscription.toJSON()`) |
+| `POST /api/push/unsubscribe` | `{"endpoint": "…"}` | remove a device (no sign-in needed: knowing the endpoint is enough) |
+| `POST /api/push/test` | `{"endpoint": "…"}` | send a test to that device |
 | `POST /api/alerts/<key>/ack` | – | acknowledge / un-acknowledge an alert |
 | `POST /api/alerts/test` | – | send a test notification |
 | `POST /api/summary/speak` | `{"day": "yesterday"}` or `{"text": "…"}` | speak on the Google speaker |
@@ -268,7 +278,9 @@ routine with any starter and "activate day summary" as the action.
 
 A node whose sensor isn't reading answers as needing repair; an offline node as offline.
 
-## 8. Rain predictor
+## 8. Predictions
+
+### 8.1 Rain
 
 Works when at least one node is marked **outdoor** (node card on the dashboard, or
 `iothub name node1 Balcony outdoor`). Weather (`setup-weather.sh`) makes it much better but isn't required.
@@ -299,3 +311,42 @@ compares with the online temperature out of the sun.
 
 Files: `~/iothub-data/rain_model.json` (current weights). Tables: `rain_checks` (episodes and your answers),
 `rain_preds` (every prediction, kept 120 days, used for the score).
+
+### 8.2 Temperature, dew and SD card
+
+**Outdoor nodes:** the online hourly forecast, corrected by how this spot usually differs from it. The hub
+learns the median difference for each hour of the day, separately for sunny and cloudy hours, from the last
+14 days, so a balcony that gets the afternoon sun is expected to run hot exactly then. From that: tonight's
+low, tomorrow's high, and a 24-hour curve on the Outlook card (solid = expected here, dashed = forecast).
+Needs about a day of readings with weather before it starts.
+
+**Dew:** if this spot's expected humidity overnight reaches 94% (air within about 1° of its dew point), the
+Outlook card says when, and after 6 PM it's a tip ("bring in cushions") on the phone.
+
+**Indoor nodes:** a straight-line fit of the room's daily high and low against the outdoor ones over the last
+three weeks (at least 5 days). It also tells you how strongly the room follows the weather.
+
+**Scoring:** each evening after 6 PM, tomorrow's calls are saved (`temp_preds`) and compared with what really
+happened. Outdoor calls are compared with the plain forecast, indoor ones with "same as the day before".
+
+**SD card:** the used space is recorded daily (`disk_hist`). After a week, the trend gives GB a month and when
+the card would reach the "nearly full" limit; with old readings pruned it usually reads "steady".
+
+## 9. App notifications
+
+The installed dashboard app (or the browser) can get notifications straight from the hub with standard
+Web Push, alongside or instead of ntfy/Telegram. Turn them on per device with the **Notify** button
+(admin sign-in). Each device chooses:
+
+| Choice | Default | What |
+| --- | --- | --- |
+| Problems | on | everything that would page you: offline, power, sensor, limits. Critical alerts always come through |
+| Rain | on | raining now, rain coming, and "did it rain?" questions with **Yes / No buttons** that answer directly |
+| Evening summary | on | the day summary at `SUMMARY_TIME` |
+| Tips | off | dew tonight, damp air, heat |
+| Quiet at night | on | 10 PM to 7 AM non-critical notifications arrive silently |
+
+Requirements: an https address (the Tailscale Funnel link, also what Share shows) and `python3-cryptography`
+on the Pi (installed by `setup-dashboard.sh`). Android, desktop Chrome/Edge/Firefox work in the browser or the
+installed app; on iPhone (iOS 16.4+) add it to the Home Screen first and turn notifications on from the app.
+Devices that uninstall the app or block notifications are removed automatically.

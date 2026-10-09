@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# iothub - one command to run and look after the IoT hub on the Raspberry Pi.
+# Installed to /usr/local/bin/iothub by setup-dashboard.sh.  Run:  iothub help
 set -uo pipefail
 
 CONF_DIR="$HOME/.config/iothub"
@@ -9,6 +11,7 @@ PORT=8080
 API="http://127.0.0.1:$PORT"
 
 if [[ -f $CONF_DIR/mqtt.env ]]; then
+  # shellcheck disable=SC1091
   source "$CONF_DIR/mqtt.env"
 fi
 M=(-h localhost -u "${MQTT_USER:-esp}" -P "${MQTT_PASS:-}")
@@ -17,7 +20,7 @@ bold() { printf '\e[1m%s\e[0m\n' "$*"; }
 die() { echo "iothub: $*" >&2; exit 1; }
 need_node() { [[ -n ${1:-} ]] || die "which node? e.g.  iothub $2 node1   (iothub nodes lists them)"; }
 valid_id() { [[ $1 =~ ^[a-z0-9_-]{1,24}$ ]] || die "'$1' is not a valid node name"; }
-send_cmd() {
+send_cmd() {  # send_cmd <node|all> <command>
   valid_id "$1"
   mosquitto_pub "${M[@]}" -t "home/$1/cmd" -m "$2" && echo "sent '$2' to $1"
 }
@@ -51,6 +54,7 @@ Reports
   iothub weather                 outside now, rain coming, and tips (open a window, damp air...)
   iothub rain                    rain chance for the next 2 h, why, and questions waiting for you
   iothub rain yes|no|unsure      answer the latest "did it rain?" question
+  iothub outlook                 tonight's low and tomorrow's high per node, dew, SD card outlook
   iothub report [hours] [email ...]  email a report with graphs now (default: last 24 h to
                                  the saved recipients; add addresses to send elsewhere)
 
@@ -179,6 +183,7 @@ cmd_reset_all() {
   send_cmd all clearbuffer
   sleep 2
   YES=1 RESET_ALL=1 cmd_reset --events --alerts
+  # Adafruit IO history is only deleted when you say so interactively (never with --yes)
   if [[ -f $CONF_DIR/adafruit.env && ${YES:-} != 1 ]] && confirm "Also delete the history stored on Adafruit IO? (feeds are recreated automatically)"; then
     python3 - "$CONF_DIR" <<'PY'
 import json, os, shlex, sys, urllib.request, urllib.error
@@ -213,7 +218,7 @@ cmd_backup() {
   local out="$DATA_DIR/backups/readings-$(date +%Y%m%d-%H%M%S-%3N).db"
   python3 -c "import sqlite3,sys; s=sqlite3.connect(sys.argv[1]); d=sqlite3.connect(sys.argv[2]); s.backup(d); d.close()" "$DB" "$out" || return 1
   echo "backup saved: $out ($(du -h "$out" | cut -f1))"
-  ls -1t "$DATA_DIR"/backups/readings-*.db 2>/dev/null | tail -n +11 | xargs -r rm -f
+  ls -1t "$DATA_DIR"/backups/readings-*.db 2>/dev/null | tail -n +11 | xargs -r rm -f   # keep 10
 }
 
 cmd_export() {
@@ -237,6 +242,7 @@ cmd_password() {
 
 cmd_test_alert() {
   [[ -f $CONF_DIR/alerts.env ]] || die "alerts not set up - run: bash ~/iothub-ota/pi/setup-alerts.sh"
+  # shellcheck disable=SC1091
   source "$CONF_DIR/alerts.env"
   [[ -n ${NTFY_TOPIC:-} ]] || die "no ntfy topic set"
   curl -fsS -H "Title: [INFO] IoT Hub test" -H "Tags: information_source" \
@@ -419,6 +425,34 @@ for q in d["open"][:3]:
 ' || die "dashboard service not answering (or hub older than 2.14)"
 }
 
+cmd_outlook() {
+  curl -fsS --max-time 30 "$API/api/outlook" | python3 -c '
+import json, sys, time
+d = json.load(sys.stdin)
+t = lambda ts: time.strftime("%I:%M %p", time.localtime(ts)).lstrip("0")
+if not d["nodes"]:
+    print("No outlook yet: needs weather (setup-weather.sh) and a few days of readings.")
+for o in d["nodes"]:
+    tn, tm = o.get("tonight"), o.get("tomorrow") or {}
+    print(o["name"] + " (" + o["place"] + ")")
+    if tn:
+        print("  tonight: low %.1f around %s (forecast %.1f)" % (tn["lo"], t(tn["lo_t"]), tn["fc_lo"]))
+    if o["place"] == "outdoor" and tm.get("hi") is not None:
+        print("  %s: high %.1f around %s (forecast %.1f)" % (tm["day"], tm["hi"], t(tm["hi_t"]), tm["fc_hi"]))
+    elif tm:
+        print("  %s: about %.0f to %.0f" % (tm["day"], tm["lo"], tm["hi"]))
+    if o.get("dew"):
+        print("  dew likely around " + t(o["dew"]["ts"]))
+for n, s in d.get("score", {}).items():
+    print("Calls for %s: off by %s on average over %d (%s: %s)" % (n, s["off_by"], s["calls"], s["base"], s["base_off_by"]))
+k = d.get("disk") or {}
+if k.get("full_in_days"):
+    print("SD card: %s of %s GB, nearly full in about %d days" % (k["used_gb"], k["total_gb"], k["full_in_days"]))
+elif k.get("used_gb"):
+    print("SD card: %s of %s GB, steady" % (k["used_gb"], k["total_gb"]))
+' || die "dashboard service not answering (or hub older than 2.14)"
+}
+
 cmd_speak() {
   local arg=${1:-}
   if [[ -z $arg || $arg == yesterday || $arg =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}$ ]]; then
@@ -455,6 +489,7 @@ case ${1:-help} in
   speak|say) shift; cmd_speak "$@";;
   weather) cmd_weather;;
   rain) cmd_rain "${2:-}";;
+  outlook|forecast) cmd_outlook;;
   name|label) shift; cmd_name "$@";;
   help|-h|--help) usage;;
   *) echo "unknown command: $1"; echo; usage; exit 1;;

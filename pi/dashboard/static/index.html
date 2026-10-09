@@ -172,6 +172,16 @@ select.btn, input.btn { cursor: auto; }
 .cat-group + .cat-group { margin-top: 18px; }
 .cat-group h3 { font-size: 13.5px; font-weight: 600; color: var(--ink-2); margin: 0 0 4px; }
 #shareDlg { width: min(400px, 94vw); text-align: center; }
+#pushDlg { width: min(440px, 94vw); }
+#pushDlg h2 { margin-top: 0; }
+#pushDlg .push-on { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 10px 12px; border: 1px solid var(--rule); border-radius: 8px; background: var(--sunken); margin: 10px 0 12px; }
+#pushDlg fieldset { border: 0; padding: 0; margin: 0 0 14px; display: grid; gap: 10px; }
+#pushDlg fieldset[disabled] { opacity: .55; }
+#pushDlg label { display: grid; grid-template-columns: 20px 1fr; gap: 8px; align-items: start; font-size: 14.5px; cursor: pointer; }
+#pushDlg label input { margin-top: 3px; } #pushDlg label small { display: block; color: var(--ink-3); font-size: 12.5px; }
+#pushDlg .row { justify-content: flex-end; }
+#pushBtn.on { border-color: var(--accent); color: var(--accent); }
+@media (max-width: 560px) { #pushBtn span { display: none; } }
 #shareDlg .qr { background: #fff; border-radius: 10px; padding: 14px; margin: 6px auto 12px; width: min(280px, 72vw); }
 #shareDlg .qr svg { display: block; width: 100%; height: auto; }
 #shareDlg .url { font-family: var(--num); font-size: 15px; word-break: break-all; color: var(--ink); margin: 0 0 10px; }
@@ -208,7 +218,18 @@ body:not(.guest) .guest-only { display: none; }
 .gauge { border: 1px solid var(--rule); border-radius: 10px; padding: 10px 14px; background: var(--sunken); margin-bottom: 8px; }
 .gauge b { display: block; font-family: var(--num); font-size: 34px; font-weight: 500; line-height: 1.1; }
 .gauge b.hi { color: var(--info); } .gauge small { color: var(--ink-3); font-size: 12px; }
+.ol-temps { display: grid; gap: 12px; margin-top: 14px; border-top: 1px solid var(--rule); padding-top: 12px; }
+.ol-temps:empty { display: none; }
+.ol-row { display: grid; grid-template-columns: 190px minmax(0, 1fr); gap: 6px 24px; align-items: center; }
+@media (max-width: 700px) { .ol-row { grid-template-columns: minmax(0, 1fr); } }
+.ol-row h4 { margin: 0; font-size: 14px; font-weight: 600; } .ol-row h4 small { display: block; color: var(--ink-3); font-weight: 400; font-size: 12px; }
+.ol-row p { margin: 0; font-size: 14px; line-height: 1.5; }
+.ol-row .chip { display: inline-block; font-size: 12.5px; padding: 1px 8px; border-radius: 10px; background: var(--sunken); border: 1px solid var(--rule); margin: 4px 6px 0 0; }
+.spark { width: 100%; height: 54px; display: block; margin-top: 6px; }
+.spark .p { stroke: var(--accent); } .spark .f { stroke: var(--ink-3); stroke-dasharray: 4 3; }
+.spark-key { font-size: 11.5px; color: var(--ink-3); }
 .rain-why { margin: 0 0 10px; padding-left: 18px; font-size: 14px; } .rain-why li { margin: 2px 0; }
+.rain-why li.lead { list-style: none; margin-left: -18px; font-size: 12.5px; font-weight: 600; color: var(--ink-3); text-transform: uppercase; letter-spacing: .4px; }
 .rq { border: 1px solid var(--rule-2); border-left: 4px solid var(--info); border-radius: 8px; padding: 10px 12px; margin-top: 8px; }
 .rq p { margin: 0 0 4px; font-size: 14.5px; font-weight: 500; } .rq small { display: block; color: var(--ink-3); font-size: 12.5px; margin-bottom: 8px; }
 .rq .btns { display: flex; flex-wrap: wrap; gap: 6px; }
@@ -313,18 +334,19 @@ dialog .row { display: flex; gap: 8px; justify-content: flex-end; }
     <div class="topline">
       <h1 class="verdict" id="verdict"><span class="mark"></span><span id="verdictTxt">Connecting to the hub…</span></h1>
       <div class="conn" id="conn" aria-live="polite"><i></i><span id="connTxt">Connecting</span></div>
-      <div class="account"><button class="btn" id="shareBtn" title="Show a QR code to open this dashboard"><svg viewBox="0 0 20 20" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><rect x="3" y="3" width="5" height="5" rx="1"/><rect x="12" y="3" width="5" height="5" rx="1"/><rect x="3" y="12" width="5" height="5" rx="1"/><path d="M12 12h2v2h-2zM15 15h2v2h-2zM12 16v1M16 12h1"/></svg>Share</button><button class="btn" id="installBtn" hidden>Install app</button><span id="acctTxt">Viewing as guest</span><button class="btn" id="acctBtn">Admin sign in</button></div>
+      <div class="account"><button class="btn" id="pushBtn" title="Notifications on this device"><svg viewBox="0 0 20 20" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="M5 8a5 5 0 0110 0c0 4 1.5 5.5 1.5 5.5h-13S5 12 5 8zM8.5 16.5a1.6 1.6 0 003 0"/></svg><span>Notify</span></button><button class="btn" id="shareBtn" title="Show a QR code to open this dashboard"><svg viewBox="0 0 20 20" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><rect x="3" y="3" width="5" height="5" rx="1"/><rect x="12" y="3" width="5" height="5" rx="1"/><rect x="3" y="12" width="5" height="5" rx="1"/><path d="M12 12h2v2h-2zM15 15h2v2h-2zM12 16v1M16 12h1"/></svg>Share</button><button class="btn" id="installBtn" hidden>Install app</button><span id="acctTxt">Viewing as guest</span><button class="btn" id="acctBtn">Admin sign in</button></div>
     </div>
 
     <section data-section="overview">
       <div class="readouts" id="readouts"><p class="empty">Waiting for the first readings.</p></div>
       <div class="panel" id="rainPanel" hidden style="margin-bottom:18px">
-        <div class="ph"><h2>Rain</h2><span class="muted small" id="rainSub"></span></div>
+        <div class="ph"><h2>Outlook</h2><span class="muted small" id="rainSub"></span></div>
         <div class="rain-grid">
           <div class="rain-odds"><div class="gauge"><b id="rainP">–</b><small>chance in the next 2 h</small></div>
             <div class="small" id="rainVs"></div></div>
           <div><ul class="rain-why" id="rainWhy"></ul><div id="rainQs"></div></div>
         </div>
+        <div class="ol-temps" id="olTemps"></div>
         <details class="sum-details"><summary>How it learns</summary><div class="small" id="rainHow"></div></details>
       </div>
       <div class="panel" id="sumPanel" style="margin-bottom:18px">
@@ -506,6 +528,20 @@ dialog .row { display: flex; gap: 8px; justify-content: flex-end; }
     <div class="row"><button type="button" class="btn" id="loginCancel">Cancel</button><button type="submit" class="btn primary" id="loginGo">Sign in</button></div>
   </form>
 </dialog>
+<dialog id="pushDlg" aria-labelledby="pushTitle">
+  <h2 id="pushTitle">Notifications</h2>
+  <p id="pushNote" class="muted"></p>
+  <div class="push-on"><b id="pushState">Off for this device</b><button type="button" class="btn primary" id="pushToggle">Turn on</button></div>
+  <fieldset id="pushPrefs" disabled>
+    <label><input type="checkbox" data-p="problems"><span>Problems<small>offline nodes, power cuts, sensor faults, limits crossed</small></span></label>
+    <label><input type="checkbox" data-p="rain"><span>Rain<small>raining now, rain coming, and "did it rain?" questions with answer buttons</small></span></label>
+    <label><input type="checkbox" data-p="summary"><span>Evening summary</span></label>
+    <label><input type="checkbox" data-p="tips"><span>Tips<small>dew tonight, damp air, heat</small></span></label>
+    <label><input type="checkbox" data-p="quiet"><span>Quiet at night<small>10 PM to 7 AM they arrive silently; critical alerts still ring</small></span></label>
+  </fieldset>
+  <div class="row"><button type="button" class="btn" id="pushTest" disabled>Send a test</button><button type="button" class="btn primary" id="pushClose">Done</button></div>
+  <p class="small muted" id="pushDevices"></p>
+</dialog>
 <dialog id="shareDlg" aria-labelledby="shareTitle">
   <h2 id="shareTitle">Open this dashboard</h2>
   <p id="shareNote">Scan with a phone camera.</p>
@@ -541,7 +577,7 @@ function dur(s) {
   const d = Math.floor(s / 86400), h = Math.floor(s % 86400 / 3600), m = Math.floor(s % 3600 / 60);
   return d ? `${d} d ${h} h` : h ? `${h} h ${m} min` : `${m} min`;
 }
-const when = ts => new Date(ts * 1000).toLocaleString([], { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
+const when = ts => new Date(ts * 1000).toLocaleString([], { day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit', hour12: true }).replace(/\b([ap])\.?m\.?$/i, (m, x) => x.toUpperCase() + 'M');
 const isoDay = dt => `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, '0')}-${String(dt.getDate()).padStart(2, '0')}`;
 function toast(msg) {
   const t = $('#toast'); t.textContent = msg; t.classList.add('show');
@@ -718,7 +754,7 @@ function comfortTxt(n) {
 }
 const lbl = n => n.label || n.id;
 const nodeLbl = id => lbl(S.nodes.find(n => n.id === id) || { id });
-const hm = ts => new Date(ts * 1000).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit', hour12: true });
+const hm = ts => new Date(ts * 1000).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit', hour12: true }).replace(/\b([ap])\.?m\.?$/i, (m, x) => x.toUpperCase() + 'M');
 function vsOnline(n) {
   const c = S.wx?.current;
   if (n.place !== 'outdoor' || !c || c.temp == null || n.temp == null || nodeState(n) !== 'online') return '';
@@ -740,17 +776,24 @@ function outsideCard() {
 const rain = {
   d: null,
   async load() {
-    try { this.d = await api('/api/rain', { timeout: 15000 }); } catch { return; }
+    try { [this.d, this.ol] = await Promise.all([api('/api/rain', { timeout: 15000 }), api('/api/outlook', { timeout: 15000 }).catch(() => null)]); } catch { return; }
     guard('rain', () => this.render());
   },
   render() {
-    const d = this.d, box = $('#rainPanel');
-    box.hidden = !d.enabled; if (!d.enabled) return;
+    const d = this.d, box = $('#rainPanel'), ol = this.ol;
+    box.hidden = !d.enabled && !(ol?.nodes || []).length; if (box.hidden) return;
+    $('.rain-grid', box).hidden = !d.enabled;
+    $('#olTemps').innerHTML = (ol?.nodes || []).map(olRow).join('');
+    if (!d.enabled) { $('#rainSub').textContent = 'Mark a node as outdoor for rain predictions'; return; }
     const o = d.outlook, p = o ? Math.round(o.p * 100) : null;
     $('#rainSub').textContent = o ? `${o.name}, learned from ${d.model.examples} moments (${Math.round(d.model.rain_examples)} with rain)` : 'Waiting for the outdoor node';
     $('#rainP').textContent = p == null ? '–' : p + '%'; $('#rainP').className = p >= 50 ? 'hi' : '';
     $('#rainVs').innerHTML = o ? (o.forecast != null ? `Forecast says ${Math.round(o.forecast)}%` : 'No forecast loaded') : '';
-    $('#rainWhy').innerHTML = !o ? '' : o.why.length ? o.why.map(w => `<li>${esc(w[0].toUpperCase() + w.slice(1))}</li>`).join('')
+    const cap = w => esc(w[0].toUpperCase() + w.slice(1));
+    const low = o && o.p < 0.3 && (o.why_not || []).length;
+    $('#rainWhy').innerHTML = !o ? '' : low
+      ? `<li class="lead">Why it's low</li>${o.why_not.map(w => `<li>${cap(w)}</li>`).join('')}${o.why.length ? `<li class="muted">Against that: ${esc(o.why.join('; '))}</li>` : ''}`
+      : o.why.length ? `<li class="lead">Why</li>${o.why.map(w => `<li>${cap(w)}</li>`).join('')}`
       : `<li class="muted">Nothing on the ${esc(o.name.toLowerCase())} graph points to rain${o.dry_air ? ': the air is well away from saturation' : ''}.</li>`;
     $('#rainQs').innerHTML = (d.open || []).map(q => `<div class="rq" data-id="${q.id}"><p>${esc(q.question)}</p><small>${esc(q.why)}</small>
       <div class="btns admin-only"><button class="btn" data-a="yes">Yes, it rained</button><button class="btn" data-a="no">No, stayed dry</button><button class="btn" data-a="unsure">Not sure</button></div>
@@ -766,9 +809,39 @@ const rain = {
       <p>${m.trained ? `Last trained ${hm(m.trained)} on ${m.examples} moments, ${Math.round(m.rain_examples)} of them just before rain.` : 'Not trained yet: using the built-in guess.'}
       "It's raining" means humidity up ${m.signature.rise.toFixed(0)}% in an hour to at least ${m.signature.peak.toFixed(0)}% (tuned from your answers).</p>
       ${sc ? `<p>Last 30 days: ${sc.rains ? `caught ${sc.caught} of ${sc.rains} rains` : 'no rain yet'} with ${sc.false_alarms} false alarm${sc.false_alarms === 1 ? '' : 's'}; the forecast alone ${sc.rains ? `caught ${sc.fc_caught} with` : 'had'} ${sc.fc_false_alarms}.</p>` : ''}
+      ${Object.entries(ol?.score || {}).filter(([, v]) => v.calls >= 4).map(([id, v]) => `<p>Temperature calls for ${esc(nodeLbl(id))}: off by ${v.off_by}° on average over ${v.calls} calls${v.base_off_by != null ? ` (${esc(v.base)}: ${v.base_off_by}°)` : ''}.</p>`).join('')}
+      <p>Temperatures: for outdoor nodes, the online forecast corrected by how this spot usually differs from it at each hour, sunny or cloudy. For indoor nodes, how the room's highs and lows have followed the weather over the last three weeks. Each evening's call for tomorrow is saved and scored.</p>
       ${(d.recent || []).length ? `<p>Your answers: ${d.recent.slice(0, 6).map(r => `${esc(new Date(r.ts * 1000).toLocaleDateString([], { day: 'numeric', month: 'short' }))} ${esc(hm(r.ts))} ${r.answer === 'yes' ? 'rain' : r.answer === 'no' ? 'dry' : r.answer === 'agreed' ? 'rain (sensor and forecast agreed)' : 'not sure'}`).join(' · ')}</p>` : ''}`;
   },
 };
+function diskTxt(k) {
+  if (!k) return null;
+  if (!k.used_gb) return `learning (${k.days_of_data || 0} of 7 days measured)`;
+  if (k.full_in_days != null) { const d = k.full_in_days; return `${k.gb_per_month} GB a month; nearly full in about ${d > 730 ? Math.round(d / 365) + ' years' : d > 60 ? Math.round(d / 30) + ' months' : d + ' days'}`; }
+  return 'steady: old readings are pruned as fast as new ones arrive';
+}
+function spark(series) {
+  if (!series || series.length < 3) return '';
+  const vs = series.flatMap(p => [p[1], p[2]]), lo = Math.min(...vs) - .5, hi = Math.max(...vs) + .5;
+  const x0 = series[0][0], x1 = series[series.length - 1][0];
+  const pt = (t, v) => `${((t - x0) / (x1 - x0) * 300).toFixed(1)},${(52 - (v - lo) / (hi - lo) * 48).toFixed(1)}`;
+  const line = (i, c) => `<polyline class="${c}" fill="none" stroke-width="2" vector-effect="non-scaling-stroke" points="${series.map(p => pt(p[0], p[i])).join(' ')}"/>`;
+  return `<svg class="spark" viewBox="0 0 300 54" preserveAspectRatio="none" role="img" aria-label="Expected temperature, next 24 hours">${line(2, 'f')}${line(1, 'p')}</svg>
+    <div class="spark-key">Next 24 h: solid = expected here, dashed = online forecast · ${esc(hm(x0))} to ${esc(hm(x1))}</div>`;
+}
+function olRow(o) {
+  const dayWord = d => d === isoDay(new Date()) ? 'Today' : 'Tomorrow';
+  if (o.place === 'indoor') {
+    const t = o.tomorrow;
+    return `<div class="ol-row"><h4>${esc(o.name)}<small>indoor</small></h4><p>${dayWord(t.day)}: about ${t.lo.toFixed(0)} to ${t.hi.toFixed(0)}°
+      <span class="muted small">(${t.follows < .15 ? 'it barely follows the weather' : `moves ${Math.round(t.follows * 100)}% as much as the weather`}, learned from ${o.learned_days} days)</span></p></div>`;
+  }
+  const tn = o.tonight, tm = o.tomorrow, bits = [];
+  if (tn) bits.push(`Tonight: low <b>${tn.lo.toFixed(1)}°</b> around ${esc(hm(tn.lo_t))} <span class="muted">(forecast ${tn.fc_lo.toFixed(1)}°)</span>`);
+  if (tm?.hi != null) bits.push(`${dayWord(tm.day)}: high <b>${tm.hi.toFixed(1)}°</b> around ${esc(hm(tm.hi_t))} <span class="muted">(forecast ${tm.fc_hi.toFixed(1)}°${tm.sun ? ', higher here in the sun' : ''})</span>`);
+  return `<div class="ol-row"><h4>${esc(o.name)}<small>outdoor, learned from ${o.learned_hours} hours</small></h4><div><p>${bits.join(' · ') || 'Learning…'}</p>
+    ${o.dew ? `<span class="chip">💧 Dew likely around ${esc(hm(o.dew.ts))}</span>` : ''}${spark(o.series)}</div></div>`;
+}
 async function loadWeather() {
   try { S.wx = await api('/api/weather?hours=192', { timeout: 15000 }); window.wxHourly = S.wx.enabled ? S.wx.hourly : null; }
   catch { return; }
@@ -824,7 +897,7 @@ const sum = {
     const head = $('#sumHead');
     head.className = 'sum-head' + (d.critical ? ' crit' : d.attention.some(a => a.level !== 'crit') ? ' anomaly' : '');
     head.querySelector('.headline').textContent = d.headline;
-    const live = (d.live || []).map(x => `<div class="note"><i></i><span>${esc(x.text)}<small>${x.icon === 'rain' ? 'Weather' : 'Tip'} · now</small></span></div>`).join('');
+    const live = (d.live || []).filter(x => !(rain.d?.enabled && x.key?.startsWith('rain:') && x.key !== 'rain:forecast')).map(x => `<div class="note"><i></i><span>${esc(x.text)}<small>${x.icon === 'rain' ? 'Weather' : 'Tip'} · now</small></span></div>`).join('');
     const crits = d.attention.filter(a => a.level === 'crit');
     const rest = d.attention.filter(a => a.level !== 'crit');
     const row = a => `<div class="${esc(a.level)}"><i></i><span>${esc(a.text)}
@@ -1287,7 +1360,7 @@ const events = {
       `<button data-cat="${c}" aria-pressed="${this.category === c}"><b>${counts[c]}</b>${CAT_NAME[c]}</button>`).join('') || '<span class="muted small">No events in the last 7 days.</span>';
     $$('#catCounts button').forEach(b => b.onclick = () => { this.category = this.category === b.dataset.cat ? '' : b.dataset.cat; this.offset = 0; this.load(); });
     const sel = $('#fNode'), cur = sel.value, ids = S.nodes.map(n => n.id);
-    sel.innerHTML = '<option value="">All nodes</option>' + ids.map(id => `<option value="${esc(id)}">${esc(id)}</option>`).join(''); sel.value = cur;
+    sel.innerHTML = '<option value="">All nodes</option>' + ids.map(id => `<option value="${esc(id)}">${esc(nodeLbl(id))}</option>`).join(''); sel.value = cur;
   },
 };
 ['fLevel', 'fNode'].forEach(id => $('#' + id).onchange = () => { events.offset = 0; events.load(); });
@@ -1324,7 +1397,7 @@ const intr = {
 
     $('#iOutages').innerHTML = d.outages.filter(o => o.kind !== 'first').map(o => {
       const lost = o.lost == null ? '<span class="muted">counting…</span>'
-        : o.lost ? `<b>${o.lost}</b>${o.recovered ? `, <span class="muted">${o.recovered} restored</span>` : ''}<div class="small muted">${Object.entries(o.nodes || {}).filter(([, v]) => v.missing).map(([k, v]) => `${esc(k)}: ${v.missing} (${esc(dur(v.gap_s))})`).join(', ')}</div>`
+        : o.lost ? `<b>${o.lost}</b>${o.recovered ? `, <span class="muted">${o.recovered} restored</span>` : ''}<div class="small muted">${Object.entries(o.nodes || {}).filter(([, v]) => v.missing).map(([k, v]) => `${esc(nodeLbl(k))}: ${v.missing} (${esc(dur(v.gap_s))})`).join(', ')}</div>`
         : `none${o.recovered ? `, <span class="muted">${o.recovered} restored from nodes</span>` : ''}`;
       return `<tr><td class="small" style="white-space:nowrap">${o.last_alive ? when(o.last_alive) : when(o.detected)}</td>
         <td><span class="sev ${OUT_SEV[o.kind] || 'info'}">${esc(o.label)}</span></td>
@@ -1335,17 +1408,17 @@ const intr = {
 
     $('#iNodes').innerHTML = d.per_node.map(p => {
       const c = p.complete_pct, cls = c == null ? '' : c >= 99 ? '' : c >= 95 ? 'warn' : 'crit';
-      return `<tr><td><b>${esc(p.node)}</b></td><td class="n"><span class="bar-pct"><i class="${cls}" style="width:${c ?? 0}%"></i></span>${c == null ? '–' : c.toFixed(1) + '%'}</td>
+      return `<tr><td><b>${esc(nodeLbl(p.node))}</b></td><td class="n"><span class="bar-pct"><i class="${cls}" style="width:${c ?? 0}%"></i></span>${c == null ? '–' : c.toFixed(1) + '%'}</td>
         <td class="n">${p.missing.toLocaleString()}</td><td class="n">${p.gaps}</td><td class="n">${p.node === 'pi' ? '–' : p.restarts}</td></tr>`;
     }).join('') || '<tr><td colspan="5" class="empty">No readings yet.</td></tr>';
 
-    $('#iBoots').innerHTML = d.node_boots.slice(0, 12).map(b => `<tr><td class="small muted" style="white-space:nowrap">${when(b.ts)}</td><td><b>${esc(b.node)}</b></td>
+    $('#iBoots').innerHTML = d.node_boots.slice(0, 12).map(b => `<tr><td class="small muted" style="white-space:nowrap">${when(b.ts)}</td><td><b>${esc(nodeLbl(b.node))}</b></td>
       <td class="small">${esc(b.reason_txt)}</td></tr>`).join('') || '<tr><td class="empty">No node restarts recorded.</td></tr>';
 
     const sel = $('#iNode'), cur = sel.value;
-    sel.innerHTML = '<option value="">All nodes</option>' + d.per_node.map(p => `<option value="${esc(p.node)}">${esc(p.node)}</option>`).join(''); sel.value = cur;
+    sel.innerHTML = '<option value="">All nodes</option>' + d.per_node.map(p => `<option value="${esc(p.node)}">${esc(nodeLbl(p.node))}</option>`).join(''); sel.value = cur;
     const gaps = d.gaps.filter(g => !sel.value || g.node === sel.value), show = this.all ? gaps : gaps.slice(0, 25);
-    $('#iGaps').innerHTML = show.map(g => `<tr><td><b>${esc(g.node)}</b></td><td class="small" style="white-space:nowrap">${when(g.from)}</td>
+    $('#iGaps').innerHTML = show.map(g => `<tr><td><b>${esc(nodeLbl(g.node))}</b></td><td class="small" style="white-space:nowrap">${when(g.from)}</td>
       <td class="small" style="white-space:nowrap">${g.to ? when(g.to) : '<span class="sev crit">still missing</span>'}</td>
       <td class="n">${esc(secs((g.to || now()) - g.from))}</td><td class="n">${g.missing.toLocaleString()}</td><td class="small">${esc(g.cause)}${g.estimated ? ' <span class="chip">estimated on charts</span>' : ''}</td></tr>`).join('')
       || '<tr><td colspan="6" class="empty">No missing readings in this period.</td></tr>';
@@ -1397,6 +1470,11 @@ function renderHub() {
           : 'Live updates off (add a service account key to turn them on).'}`) +
     line('Phone notifications', !nt.channels?.length ? 'info' : nt.last_error ? 'warn' : 'ok',
       !nt.channels?.length ? 'Not set up. Run setup-alerts.sh on the Pi.' : nt.last_error ? `Sending failed: ${esc(nt.last_error)}. Retrying.` : `Via ${esc(nt.channels.join(' and '))}${nt.last_ok ? `, last sent ${ago(nt.last_ok)}` : ''}.`);
+  const pu = d.push || {};
+  $('#integ').innerHTML += line('App notifications', !pu.enabled ? 'info' : !pu.devices ? 'info' : pu.last_error && !(pu.last_ok > Date.now() / 1000 - 3600) ? 'warn' : 'ok',
+    !pu.enabled ? 'Needs python3-cryptography on the Pi (setup-dashboard.sh installs it).'
+      : !pu.devices ? 'No devices yet. Use Notify on a phone or laptop to turn them on.'
+      : `${pu.devices} device${pu.devices === 1 ? '' : 's'}${pu.last_ok ? `, last sent ${ago(pu.last_ok)}` : ''}.`);
   const em = d.email || {};
   $('#emailKv').innerHTML = (em.enabled || em.to?.length ? [
       ['Sends to', em.to?.length ? esc(em.to.join(', ')) : 'nobody yet'],
@@ -1412,6 +1490,7 @@ function renderHub() {
     ['Written since start', st.rows_written != null ? `${st.rows_written} readings` : null],
     ['Readings stored', i.readings != null ? i.readings.toLocaleString() : null], ['Database size', i.db_mb != null ? `${i.db_mb} MB` : null],
     ['Kept', st.keep_days ? `${st.keep_days} days of raw readings; daily summaries forever` : null],
+    ['SD card outlook', diskTxt(rain.ol?.disk)],
     ['Problem', st.error ? `<span style="color:var(--crit)">${esc(st.error)}</span>` : null]]
     .filter(r => r[1]).map(([k, v]) => `<dt>${k}</dt><dd>${v}</dd>`).join('');
 }
@@ -1431,7 +1510,9 @@ async function loadHub() {
     const h = await fetch('/api/health', { cache: 'no-store' }).then(r => r.json());
     $('#healthChip').innerHTML = `<span class="sev ${h.ok ? 'ok' : 'crit'}">${h.ok ? 'All jobs running' : 'Needs attention'}</span>`;
     const names = { pi_loop: 'Pi measurements', adafruit_loop: 'Adafruit IO upload', flush_loop: 'Saving to SD card',
-                    cleanup_loop: 'Old data cleanup', time_loop: 'Clock sync for nodes', notify_loop: 'Notifications', alert_loop: 'Alert checks' };
+                    cleanup_loop: 'Old data cleanup', time_loop: 'Clock sync for nodes', notify_loop: 'Phone alerts (ntfy / Telegram)', alert_loop: 'Alert checks',
+                    push_loop: 'App notifications', rain_loop: 'Rain predictor', predict_loop: 'Temperature outlook', weather_loop: 'Weather', gh_loop: 'Google Home',
+                    summary_loop: 'Daily summary', speak_loop: 'Speaker', outage_loop: 'Outage analysis', email_loop: 'Email', report_loop: 'Daily report' };
     $('#jobs').innerHTML = Object.entries(h.threads || {}).map(([k, t]) => `<tr><td>${esc(names[k] || k)}</td>
       <td><span class="state ${t.alive ? '' : 'off'}"><i></i>${t.alive ? 'Running' : 'Stopped'}</span></td><td>${t.restarts}</td>
       <td class="small muted">${esc(t.last_error || '')}</td></tr>`).join('');
@@ -1463,6 +1544,82 @@ $('#shareCopy').onclick = async () => {
   try { await navigator.clipboard.writeText(url); toast('Link copied'); }
   catch { const r = document.createRange(); r.selectNodeContents($('#shareUrl')); getSelection().removeAllRanges(); getSelection().addRange(r); toast('Press Ctrl+C to copy'); }
 };
+const b64ToBytes = s => Uint8Array.from(atob((s + '='.repeat((4 - s.length % 4) % 4)).replace(/-/g, '+').replace(/_/g, '/')), c => c.charCodeAt(0));
+const push = {
+  info: null, sub: null,
+  supported: () => 'serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window && window.isSecureContext,
+  async open() {
+    this.sub = null;
+    if (this.supported()) { try { this.sub = await (await navigator.serviceWorker.ready).pushManager.getSubscription(); } catch {  } }
+    try { this.info = await api('/api/push' + (this.sub ? `?endpoint=${encodeURIComponent(this.sub.endpoint)}` : '')); } catch { this.info = null; }
+    this.render(); $('#pushDlg').showModal();
+  },
+  render() {
+    const i = this.info, on = !!(this.sub && i?.this);
+    const perm = 'Notification' in window ? Notification.permission : 'default';
+    const note = !window.isSecureContext ? 'Notifications need the secure (https) link. Open it from Share on this device.'
+      : !this.supported() ? (isIOS && !standalone ? 'On iPhone: tap Share > Add to Home Screen, open the app from there, then come back here.' : "This browser can't receive notifications.")
+      : !i ? "Can't reach the hub." : !i.enabled ? 'The hub needs one package first: sudo apt install python3-cryptography, then iothub restart.'
+      : role !== 'admin' ? 'Sign in as admin to turn notifications on for this device.'
+      : perm === 'denied' ? "Notifications are blocked for this site. Allow them in the browser's site settings."
+      : on ? 'Straight from the hub, even when the app is closed. Choose what this device gets:' : 'Alerts, rain questions and the evening summary on this device, even when the app is closed.';
+    $('#pushNote').textContent = note;
+    const can = this.supported() && i?.enabled && role === 'admin' && perm !== 'denied';
+    $('#pushState').textContent = on ? 'On for this device' : 'Off for this device';
+    $('#pushToggle').textContent = on ? 'Turn off' : 'Turn on';
+    $('#pushToggle').disabled = !on && !can;
+    const prefs = (on && i.this) || i?.cats || {};
+    $$('#pushPrefs input').forEach(c => { c.checked = !!prefs[c.dataset.p]; });
+    $('#pushPrefs').disabled = !on; $('#pushTest').disabled = !on;
+    const n = Array.isArray(i?.devices) ? i.devices.length : (i?.devices || 0);
+    $('#pushDevices').textContent = n ? `${n} device${n === 1 ? '' : 's'} get${n === 1 ? 's' : ''} notifications from this hub.` : '';
+    $('#pushBtn').classList.toggle('on', on);
+  },
+  prefs() { return Object.fromEntries($$('#pushPrefs input').map(c => [c.dataset.p, c.checked])); },
+  label() {
+    const ua = navigator.userAgent;
+    return (/Android/.test(ua) ? 'Android' : isIOS ? 'iPhone or iPad' : /Mac/.test(ua) ? 'Mac' : /Windows/.test(ua) ? 'Windows' : /Linux/.test(ua) ? 'Linux' : 'Device') + (standalone ? ' app' : ' browser');
+  },
+  async toggle() {
+    $('#pushToggle').disabled = true;
+    try {
+      if (this.sub) {
+        const ep = this.sub.endpoint;
+        try { await this.sub.unsubscribe(); } catch {  }
+        await api('/api/push/unsubscribe', { method: 'POST', body: { endpoint: ep } }).catch(() => {});
+        this.sub = null; if (this.info) this.info.this = null; toast('Notifications off for this device');
+      } else {
+        if (await Notification.requestPermission() !== 'granted') { toast('Notifications were not allowed'); return; }
+        const reg = await navigator.serviceWorker.ready;
+        this.sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: b64ToBytes(this.info.key) });
+        await api('/api/push/subscribe', { method: 'POST', body: { subscription: this.sub.toJSON(), prefs: this.prefs(), label: this.label() } });
+        this.info = await api('/api/push?endpoint=' + encodeURIComponent(this.sub.endpoint));
+        await api('/api/push/test', { method: 'POST', body: { endpoint: this.sub.endpoint } }).catch(() => {});
+        toast('Notifications on. A test is on its way.');
+      }
+    } catch (e) { toast(e.message || 'Could not turn on notifications'); }
+    finally { this.render(); }
+  },
+  async save() {
+    if (!this.sub) return;
+    try { await api('/api/push/subscribe', { method: 'POST', body: { subscription: this.sub.toJSON(), prefs: this.prefs(), label: this.label() } }); toast('Saved'); }
+    catch (e) { toast(e.message); }
+  },
+};
+$('#pushBtn').onclick = () => push.open();
+$('#pushToggle').onclick = () => push.toggle();
+$('#pushClose').onclick = () => $('#pushDlg').close();
+$('#pushDlg').addEventListener('click', e => { if (e.target === $('#pushDlg')) $('#pushDlg').close(); });
+$$('#pushPrefs input').forEach(c => c.onchange = () => push.save());
+$('#pushTest').onclick = async () => {
+  try { await api('/api/push/test', { method: 'POST', body: { endpoint: push.sub.endpoint } }); toast('Test sent'); } catch (e) { toast(e.message); }
+};
+if (push.supported()) {
+  navigator.serviceWorker.ready.then(r => r.pushManager.getSubscription()).then(s => $('#pushBtn').classList.toggle('on', !!s)).catch(() => {});
+  navigator.serviceWorker.addEventListener('message', e => {
+    if (e.data?.type === 'open') { const u = new URL(e.data.url); if (u.hash) location.hash = u.hash; }
+  });
+}
 let installEvt = null;
 const standalone = matchMedia('(display-mode: standalone)').matches || navigator.standalone;
 const isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);

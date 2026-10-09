@@ -2,17 +2,20 @@
 
 # IoT_Pi32
 
-**Temperature and humidity monitoring with ESP32-S3 sensor nodes and a Raspberry Pi hub.**
-Live dashboard from anywhere, phone alerts, email reports, cloud upload and over-the-air updates,
-built to keep every reading through Wi-Fi drops and power cuts.
+**Temperature and humidity monitoring with ESP32-S3 sensor nodes and a Raspberry Pi hub
+that learns its surroundings.**
+Live dashboard from anywhere, day summaries in plain words, rain and temperature predictions that
+learn from your own sensors, notifications straight to the installed app, Google Home, email
+reports and over-the-air updates. Built to keep every reading through Wi-Fi drops and power cuts.
 
 ![Raspberry Pi 4](https://img.shields.io/badge/hub-Raspberry%20Pi%204-c51a4a?logo=raspberrypi&logoColor=white)
 ![ESP32-S3](https://img.shields.io/badge/nodes-ESP32--S3-e7352c?logo=espressif&logoColor=white)
 ![Python](https://img.shields.io/badge/hub-Python%203-3776ab?logo=python&logoColor=white)
 ![Arduino](https://img.shields.io/badge/firmware-Arduino%20core%203-00979d?logo=arduino&logoColor=white)
 ![MQTT](https://img.shields.io/badge/protocol-MQTT-660066?logo=mqtt&logoColor=white)
+![PWA](https://img.shields.io/badge/app-installable%20PWA-5a0fc8?logo=pwa&logoColor=white)
 
-<img src="docs/images/overview.png" alt="Dashboard overview: live readings from three nodes and the Pi, 24-hour temperature and humidity charts, recent events" width="900">
+<img src="docs/images/overview.png" alt="Dashboard overview in dark mode: a balcony sensor and a living room, the Pi, online weather, the Outlook card with rain chance and tomorrow's temperatures, and today's summary" width="900">
 
 </div>
 
@@ -21,11 +24,15 @@ built to keep every reading through Wi-Fi drops and power cuts.
 ## Contents
 
 1. [Highlights](#1-highlights)
+   1. [Never lose a reading](#11-never-lose-a-reading)
+   2. [Understands what it measures](#12-understands-what-it-measures)
+   3. [Tells you, the way you like](#13-tells-you-the-way-you-like)
 2. [Screenshots](#2-screenshots)
 3. [How it works](#3-how-it-works)
    1. [Data flow](#31-data-flow)
    2. [Power cuts and gaps](#32-power-cuts-and-gaps)
-   3. [Firmware updates](#33-firmware-updates)
+   3. [How the predictions learn](#33-how-the-predictions-learn)
+   4. [Firmware updates](#34-firmware-updates)
 4. [Hardware](#4-hardware)
    1. [Parts](#41-parts)
    2. [Wiring](#42-wiring)
@@ -35,10 +42,13 @@ built to keep every reading through Wi-Fi drops and power cuts.
    3. [Optional extras](#53-optional-extras)
    4. [Flash the first node](#54-flash-the-first-node)
 6. [Everyday use](#6-everyday-use)
-   1. [Update firmware over Wi-Fi](#61-update-firmware-over-wi-fi)
-   2. [Common commands](#62-common-commands)
-   3. [Status LED](#63-status-led)
-   4. [Install the dashboard as an app](#64-install-the-dashboard-as-an-app)
+   1. [Name your nodes](#61-name-your-nodes)
+   2. [Turn on notifications](#62-turn-on-notifications)
+   3. [Answer "did it rain?"](#63-answer-did-it-rain)
+   4. [Update firmware over Wi-Fi](#64-update-firmware-over-wi-fi)
+   5. [Common commands](#65-common-commands)
+   6. [Status LED](#66-status-led)
+   7. [Install the dashboard as an app](#67-install-the-dashboard-as-an-app)
 7. [Troubleshooting](#7-troubleshooting)
 8. [Project layout](#8-project-layout)
 
@@ -48,40 +58,65 @@ built to keep every reading through Wi-Fi drops and power cuts.
 
 ## 1. Highlights
 
+### 1.1 Never lose a reading
+
 | | |
 | --- | --- |
 | **No lost readings** | Nodes store up to 8000 readings in flash while the hub is away, then send them back. After every reconnect they also resend their last ~6 minutes, so readings that seemed sent just before a power cut aren't lost. The hub keeps only the ones it doesn't have. |
-| **Dashboard anywhere** | Live readings, any-day history, daily min/avg/max, alerts, interruptions and hub health. Shared publicly over HTTPS with Tailscale Funnel, guest view by default, admin sign-in for controls. Installs as an app on phones and desktops. |
 | **Knows what went wrong** | Every Pi power cut, reboot and crash is recorded with downtime, boot time and the readings lost per node. Node restarts include the reason (power on, brownout, crash, update). Every gap in the data gets a likely cause. |
-| **Day summary** | A short, friendly briefing: problems first, then the outdoor weather, each node's highs, comparisons with yesterday and the week, comfort, and one or two things worth knowing. Sent to the phone every evening, on the dashboard with Read aloud, and at the top of the email report. |
-| **Weather insights** | Local weather from Open-Meteo (free) explains what the sensors see: a humidity rise just before rain, rooms warmer than outside, tomorrow's forecast. Phone alerts when rain looks likely soon, plus tips for damp air, heat and when to open a window. Outdoor temperature is drawn on every chart. |
-| **Rain predictor** | Mark a node as outdoor (say, "Balcony") and it becomes a little weather station. The hub learns what the graph looks like before rain (humidity climbing, cooling, air near saturation), weighs it against the online weather, and gives the chance of rain in the next two hours with the reasons. When it isn't sure whether it rained, it asks you: buttons in the phone notification or on the dashboard. It retrains on your answers and keeps score against the plain forecast. |
-| **Friendly names** | Call a node "Balcony" or "Bedroom" and set it indoor or outdoor, from its card on the dashboard or with `iothub name`. The ID and history stay the same; summaries, charts and Google Home use the name. |
-| **Alerts and reports** | Push notifications with ntfy (free, no account) and/or Telegram. Email reports with charts to any address, daily or on demand. |
-| **Google Home** | Every node is a sensor in Google Home ("what's the temperature of node 1"), its LED a light ("turn off node 1 light"), plus "find" and "restart" scenes, today's high and low, and the hub. No Matter hub needed. |
-| **Updates over Wi-Fi** | `./deploy.sh ota node1` builds on the laptop, hands the image to the Pi and the node pulls it from there. If the new firmware can't reach the hub it rolls back by itself. |
-| **Kind to the SD card** | Readings are batched in RAM and written once a minute, logs live in RAM, raw data is kept 30 days, daily summaries forever. |
+| **Kind to the SD card** | Readings are batched in RAM and written once a minute, logs live in RAM, raw data is kept 30 days, daily summaries forever. The hub forecasts when the card would fill up. |
 | **Works without a router** | Plug an Ethernet cable into the Pi and it becomes the access point for the nodes. Nodes find the hub on their own: gateway, mDNS, then last known address. |
+| **Updates over Wi-Fi** | `./deploy.sh ota node1` builds on the laptop, hands the image to the Pi and the node pulls it from there. If the new firmware can't reach the hub it rolls back by itself. |
+
+### 1.2 Understands what it measures
+
+| | |
+| --- | --- |
+| **Friendly names, indoor or outdoor** | Call a node "Balcony" or "Living room" and mark it indoor or outdoor. The ID and history stay the same; summaries, charts, notifications and Google Home use the name, and the advice fits the place. |
+| **Day summary** | A short, friendly briefing: problems first, then highs and lows with times, how it compares with yesterday and the week, the weather, and one or two things worth knowing ("the balcony's humidity started climbing 40 minutes before the drizzle began"). On the dashboard with Read aloud, on the phone every evening, and in the email report. |
+| **Weather that explains the readings** | Local weather from [Open-Meteo](https://open-meteo.com) (free, no account) is drawn on every chart and cross-checked with the sensors: rain arriving, the sun on an outdoor sensor, a room warmer than outside, damp air, heat. |
+| **Rain predictor** | An outdoor node becomes a little weather station. The hub learns what its graph looks like before rain (humidity climbing, cooling, air near saturation), weighs that against the online forecast, and gives the chance of rain in the next two hours with the reasons, including why it's low. |
+| **Asks when it isn't sure** | "Did it rain on the balcony around 5 PM?" When the forecast and the sensor disagree, it asks, on the dashboard or with Yes / No buttons in the notification. It retrains on your answers and keeps score against the plain forecast. |
+| **Outlook** | Tonight's low and tomorrow's high for each node. Outdoor nodes: the forecast corrected by how that spot differs from it at each hour, sunny or cloudy. Indoor nodes: how the room follows the weather. Dew warnings, and every call scored against what really happened. |
+
+### 1.3 Tells you, the way you like
+
+| | |
+| --- | --- |
+| **Dashboard anywhere** | Live readings, any-day history, daily min/avg/max, the outlook, alerts, interruptions and hub health. Public over HTTPS with Tailscale Funnel, guest view by default, admin sign-in for controls, a QR code to share it. Dark and light mode. Installs as an app on phones and desktops. |
+| **App notifications** | Straight from the hub to the installed app (Web Push), no extra app or account. Each device picks problems, rain, the evening summary and tips; quiet at night; critical alerts always ring. |
+| **ntfy, Telegram and email** | Push alerts with ntfy (free, no account) and/or Telegram, with the same answer buttons. Email reports with charts to any address, daily or on demand. |
+| **Google Home** | Every node is a sensor ("what's the temperature on the balcony"), its LED a light, plus "find" and "restart" scenes, today's high and low, a spoken day summary and the hub itself. No Matter hub needed. |
 | **Readable LED** | Each node's RGB LED shows its state with smooth animations, plus a rainbow "find me" mode. |
 
 ## 2. Screenshots
 
 <table>
 <tr>
-<td width="50%"><img src="docs/images/history.png" alt="History: temperature and humidity side by side, daily summary bars"><br><sub><b>History</b> – any range or day, temperature and humidity side by side, daily min/avg/max. Small gaps are drawn as dashed estimates.</sub></td>
-<td width="50%"><img src="docs/images/interruptions.png" alt="Interruptions: power cuts, boot time, readings lost, data completeness"><br><sub><b>Interruptions</b> – power cuts, boot times, readings lost and restored, data completeness per node, node restarts.</sub></td>
+<td colspan="2"><img src="docs/images/outlook.png" alt="Outlook card: 10% chance of rain in the next two hours with the reasons it's low, a question asking whether it rained yesterday at 5 PM with Yes, No and Not sure buttons, tonight's low and tomorrow's high for the balcony with a 24-hour curve against the forecast, and tomorrow's range for the living room"><br><sub><b>Outlook</b> – the chance of rain in the next two hours and why, a question it wants you to answer, tonight's low and tomorrow's high learned for each spot (solid) against the online forecast (dashed).</sub></td>
 </tr>
 <tr>
-<td><img src="docs/images/hub.png" alt="Hub page: CPU, memory, SD card, network, broker, integrations"><br><sub><b>Hub</b> – Pi health, connections, email reports, alert rules, storage, background jobs.</sub></td>
-<td><img src="docs/images/overview-dark.png" alt="Overview in dark mode"><br><sub><b>Dark mode</b> – follows the system setting.</sub></td>
+<td colspan="2"><img src="docs/images/summary.png" alt="Today's summary: headline, insights about the drizzle and the balcony, each node's range with times, and the full details"><br><sub><b>Day summary</b> – headline first, then insights, each node's highs and lows with times, and the details: weather, rain predictor record, temperature calls and their accuracy, outages and restarts.</sub></td>
 </tr>
 <tr>
-<td><img src="docs/images/nodes.png" alt="Node cards"><br><sub><b>Nodes</b> – readings first, technical details folded away; admins get brightness, find, interval and restart.</sub></td>
-<td align="center"><img src="docs/images/phone.png" alt="Dashboard on a phone" width="240"><br><sub><b>Phone</b> – bottom tab bar, installable as an app.</sub></td>
+<td width="50%"><img src="docs/images/history.png" alt="History: seven days of temperature and humidity for the balcony and living room, with the online weather dashed, and daily summary bars"><br><sub><b>History</b> – any range or day, temperature and humidity side by side with the online weather, daily min/avg/max. Small gaps are drawn as dashed estimates.</sub></td>
+<td width="50%"><img src="docs/images/interruptions.png" alt="Interruptions: a power cut with boot time and readings lost and restored, data completeness per node, node restarts with reasons"><br><sub><b>Interruptions</b> – power cuts, boot times, readings lost and restored, data completeness per node, node restarts with the reason.</sub></td>
+</tr>
+<tr>
+<td><img src="docs/images/nodes.png" alt="Node cards for Balcony (outdoor) and Living room (indoor) with LED, interval, restart and name controls"><br><sub><b>Nodes</b> – readings first, technical details folded away; admins get brightness, find, interval, restart, and the name and place.</sub></td>
+<td><img src="docs/images/hub.png" alt="Hub page: CPU, temperature, memory, SD card, network, broker, connections, email reports, alert rules"><br><sub><b>Hub</b> – Pi health, connections (MQTT, Adafruit IO, Google Home, ntfy, app notifications), email reports, alert rules, storage, background jobs.</sub></td>
+</tr>
+<tr>
+<td align="center"><img src="docs/images/notifications.png" alt="Notifications dialog: on for this device, with choices for problems, rain, evening summary, tips and quiet at night" width="330"><br><sub><b>Notifications</b> – per device: what it gets, and quiet hours.</sub></td>
+<td align="center"><img src="docs/images/phone.png" alt="Dashboard on a phone in dark mode" width="240"><br><sub><b>Phone</b> – bottom tab bar, installable as an app.</sub></td>
+</tr>
+<tr>
+<td colspan="2"><img src="docs/images/overview-light.png" alt="Overview in light mode"><br><sub><b>Light mode</b> – follows the system setting, like dark mode.</sub></td>
 </tr>
 </table>
 
-<sub>Screenshots use demo data.</sub>
+<sub>The Balcony readings are real (9 October 2026, Bengaluru: 1:45 to 7:45 PM, every 10 s). The earlier
+history, the living room and the power cut were filled in to show the features that need a few weeks of data.</sub>
 
 ## 3. How it works
 
@@ -97,22 +132,26 @@ flowchart LR
     subgraph Pi["Raspberry Pi 4"]
         M[Mosquitto] --> H[hub service]
         H --> D[(SQLite)]
+        H --> P[predictions]
         H --> W[dashboard :8080]
         FW[firmware server :8000]
     end
     F -- MQTT --> M
     FW -. OTA .-> F
+    O[Open-Meteo] --> H
     W -- Tailscale / Funnel --> U[browser / app]
-    H --> A[Adafruit IO]
+    H -- Web Push --> U
     H --> N[ntfy / Telegram]
     H --> E[email reports]
+    H --> A[Adafruit IO]
     H <-->|HTTPS| G[Google Home]
     LT[laptop] -- deploy.sh ota --> FW
 ```
 
 Each node publishes temperature and humidity every 10 s (adjustable). The hub holds readings in
 memory and writes them to SQLite in one transaction a minute. A daily min/avg/max table is updated
-with each write and kept forever; raw readings are kept for 30 days.
+with each write and kept forever; raw readings are kept for 30 days. Hourly weather is fetched every
+15 minutes and stored next to the readings, so the past can be compared with what the forecast said.
 
 ### 3.2 Power cuts and gaps
 
@@ -127,7 +166,24 @@ with each write and kept forever; raw readings are kept for 30 days.
 - **No clock battery:** the Pi doesn't know the time until NTP answers. Readings taken before that
   are dated once the clock is confirmed, and nodes only get the hub's time after that.
 
-### 3.3 Firmware updates
+### 3.3 How the predictions learn
+
+Everything runs on the Pi; nothing is sent to an AI service.
+
+| Prediction | Looks at | Learns from |
+| --- | --- | --- |
+| **Rain in the next 2 h** (outdoor nodes) | humidity level and how fast it's rising (1 h, 3 h), cooling, distance from saturation, sensor vs city readings, forecast rain chance, pressure change, cloud | a small logistic regression retrained every 6 h on 60 days: what happened after each moment, and your answers (worth three times as much). Starts from a sensible built-in guess. |
+| **"It's raining now"** | humidity jump in the last hour and its peak | your yes/no answers move the thresholds |
+| **Tonight's low, tomorrow's high** (outdoor) | the hourly forecast | how this spot differs from it at each hour of the day, separately for sunny and cloudy hours (14 days) |
+| **Tomorrow's range** (indoor) | the outdoor forecast | how the room's daily high and low followed the weather (3 weeks) |
+| **Dew overnight** | the spot's expected humidity | as above |
+| **SD card full** | daily used space | the trend over up to 60 days |
+
+Every evening's temperature call and every rain prediction is saved and scored against what really
+happened, next to the plain forecast, so you can see whether it's earning its keep. Details in the
+[reference](docs/REFERENCE.md#8-predictions).
+
+### 3.4 Firmware updates
 
 Updates never come from the internet directly:
 
@@ -167,7 +223,8 @@ sequenceDiagram
 | DATA (yellow) | GPIO 1, plus 4.7 kΩ to 3V3 |
 
 Avoid GPIO 0, which is the BOOT strapping pin. Give each node its own USB supply so it keeps
-recording when the Pi loses power.
+recording when the Pi loses power. For an outdoor node, keep the sensor out of direct rain; some sun
+is fine, since the hub learns when the sun is on it.
 
 ## 5. Getting started
 
@@ -188,7 +245,7 @@ For access from anywhere, install [Tailscale](https://tailscale.com):
 ```bash
 curl -fsSL https://tailscale.com/install.sh | sh
 sudo tailscale up --ssh
-sudo tailscale funnel --bg 8080      # optional: public HTTPS link to the dashboard
+sudo tailscale funnel --bg 8080      # public HTTPS link: needed for the app, notifications and Google Home
 ```
 
 ### 5.2 Install the hub
@@ -201,18 +258,18 @@ ssh -t <pi> bash iothub-ota/setup-ota.sh          # MQTT login, firmware server,
 ssh -t <pi> bash iothub-ota/setup-dashboard.sh    # hub service, dashboard, iothub command
 ```
 
-The dashboard is now at `http://<pi>:8080`.
+The dashboard is now at `http://<pi>:8080`, and at the Funnel link if you turned it on.
 
 ### 5.3 Optional extras
 
 | Script | Adds |
 | --- | --- |
+| `setup-weather.sh` | local weather: rain alerts, tips, the outlook and the evening summary time. **Recommended**: most of the smart features need it |
 | `setup-alerts.sh` | ntfy / Telegram notifications and temperature / humidity limits |
 | `setup-email.sh` | email reports (sent from a Gmail account with an app password) |
-| `setup-adafruit.sh` | upload to Adafruit IO (free plan limits respected) |
-| `setup-weather.sh` | local weather, rain alerts, tips and the evening summary time |
-| `setup-speaker.sh` | optional: also speak the summary on a Google speaker (off unless `SPEAKER_ENABLED=yes`) |
 | `setup-google.sh` | Google Home: nodes appear as sensors, readable by voice (needs the Funnel link) |
+| `setup-adafruit.sh` | upload to Adafruit IO (free plan limits respected) |
+| `setup-speaker.sh` | optional: also speak the summary on a Google speaker (off unless `SPEAKER_ENABLED=yes`) |
 | `setup-network.sh` | Ethernet mode: the Pi runs the `IoTHub` Wi-Fi for the nodes |
 | `protect-sd.sh` | fewer SD card writes, time zone (reboot after) |
 | `optimize-boot.sh` | faster boot for a headless Pi (reboot after) |
@@ -232,17 +289,37 @@ cp iot_node/secrets.example.h iot_node/secrets.h    # Wi-Fi, MQTT password, LED 
 ```
 
 If the board doesn't show up, hold **BOOT** while plugging it in, and use the port labelled USB.
-Then name it:
+Then give it an ID, and a friendly name and place:
 
 ```bash
 ssh <pi> iothub rename esp-a1b2c3 node1
+ssh <pi> iothub name node1 Balcony outdoor
 ```
 
 All settings in `secrets.h` are listed in the [reference](docs/REFERENCE.md#3-node-settings).
 
 ## 6. Everyday use
 
-### 6.1 Update firmware over Wi-Fi
+### 6.1 Name your nodes
+
+On the **Nodes** page, type a name and choose Indoor or Outdoor, or run `iothub name node1 Balcony outdoor`.
+Outdoor nodes get rain predictions, sun and dew detection and comparisons with the forecast; indoor
+nodes get ventilation, damp and heat tips. After renaming, say "Hey Google, sync my devices".
+
+### 6.2 Turn on notifications
+
+Open the HTTPS link on the phone or laptop, sign in as admin and tap **Notify** → **Turn on**. Choose
+what that device gets: problems, rain (including questions with answer buttons), the evening summary,
+tips, and whether to stay quiet from 10 PM to 7 AM. Critical alerts always ring. On iPhone, add the
+dashboard to the Home Screen first and turn notifications on from there.
+
+### 6.3 Answer "did it rain?"
+
+When the forecast and an outdoor sensor disagree, the hub asks whether it rained. Tap **Yes** or
+**No** in the notification, on the Outlook card, or run `iothub rain yes`. Your answers retrain the
+rain predictor; "How it learns" on the Outlook card shows its record next to the forecast's.
+
+### 6.4 Update firmware over Wi-Fi
 
 ```bash
 ./deploy.sh ota node1      # or: ./deploy.sh ota all
@@ -250,7 +327,7 @@ All settings in `secrets.h` are listed in the [reference](docs/REFERENCE.md#3-no
 
 It ends with `booted fw=<version>`. `./deploy.sh usb` always works as a fallback.
 
-### 6.2 Common commands
+### 6.5 Common commands
 
 Run on the Pi, or from anywhere with `ssh <pi> iothub …`:
 
@@ -258,7 +335,11 @@ Run on the Pi, or from anywhere with `ssh <pi> iothub …`:
 | --- | --- |
 | `iothub status` | services, links, nodes online, open problems |
 | `iothub nodes` | every node: readings, sensor, firmware, signal |
-| `iothub watch [node]` | live MQTT stream |
+| `iothub summary [yesterday]` | the day in plain words |
+| `iothub outlook` | tonight's low, tomorrow's high, dew, SD card |
+| `iothub rain` | chance of rain in the next 2 h, why, and questions waiting |
+| `iothub weather` | outside now and current tips |
+| `iothub name <node> <Name> [indoor\|outdoor]` | friendly name and place |
 | `iothub interruptions` | power cuts, boot times, readings lost |
 | `iothub find <node>` | rainbow LED for 10 s |
 | `iothub report` | email a report now |
@@ -266,7 +347,7 @@ Run on the Pi, or from anywhere with `ssh <pi> iothub …`:
 The full list, with node control, data export, backups and resets, is in the
 [command reference](docs/REFERENCE.md#2-pi-the-iothub-command).
 
-### 6.3 Status LED
+### 6.6 Status LED
 
 | LED | State |
 | --- | --- |
@@ -278,13 +359,13 @@ The full list, with node control, data export, backups and resets, is in the
 | 🟣 purple | firmware update |
 | 🌈 rainbow | "find node" |
 
-### 6.4 Install the dashboard as an app
+### 6.7 Install the dashboard as an app
 
 Open the HTTPS (Funnel) link. In Chrome, Edge or Android use **Install app**; on iPhone use
 Safari → Share → **Add to Home Screen**.
 
 To let someone else open it, click **Share** at the top of the dashboard: it shows a QR code for the
-public link, ready to scan with a phone camera.
+public link, ready to scan with a phone camera. Visitors see a read-only guest view.
 
 ## 7. Troubleshooting
 
@@ -296,7 +377,9 @@ public link, ready to scan with a phone camera.
 | LED red heartbeat | sensor wiring or pull-up; data must be on `SENSOR_PIN` |
 | Node never joins `IoTHub` | set `AP_PASS` in `secrets.h` to the password used in `setup-network.sh` |
 | `ota-push` says node not online | the node must be connected to the Pi's broker; check `iothub nodes` |
-| Can't install the dashboard as an app | use the HTTPS Funnel link, not the plain `http://` address |
+| Can't install the app or turn on notifications | use the HTTPS Funnel link, not the plain `http://` address; on iPhone add it to the Home Screen first |
+| Notify says the hub needs a package | `sudo apt install python3-cryptography`, then `iothub restart` |
+| No Outlook card | needs `setup-weather.sh` and about a day of readings; rain predictions need a node marked outdoor |
 | Gaps after a power cut | normal if the node lost power too; give nodes their own supply |
 | Under-voltage warnings | use a 5.1 V 3 A supply for the Pi |
 
@@ -314,9 +397,10 @@ pi/
   ota-push                push firmware to nodes
   iothub                  management command
   dashboard/
-    iothub.py             hub service: MQTT, storage, alerts, reports, uploads, web API
+    iothub.py             hub service: MQTT, storage, alerts, summaries, weather, predictions,
+                          notifications, reports, uploads, Google Home, web API
     static/               dashboard web app, manifest, service worker, icons
 docs/
-  REFERENCE.md            commands, settings, MQTT topics, HTTP API
+  REFERENCE.md            commands, settings, MQTT topics, HTTP API, predictions, notifications
   images/                 screenshots
 ```

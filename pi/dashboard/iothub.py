@@ -42,7 +42,7 @@ DATA_DIR = os.path.join(HOME, "iothub-data")
 DB_PATH = os.path.join(DATA_DIR, "readings.db")
 STATIC = os.path.join(os.path.dirname(os.path.abspath(__file__)), "static")
 
-HUB_VERSION = "2.14"
+HUB_VERSION = "2.16"
 PI_ID = "pi"
 PI_EVERY_S = 10
 ID_RE = re.compile(r"^[a-z0-9_-]{1,24}$")
@@ -835,7 +835,11 @@ def notify_loop():
                 delay = min(delay * 2, 300)
 
 
-def notify(title, body, level="warn", category="", actions=None):
+def notify(title, body, level="warn", category="", actions=None, push=None):
+    try:
+        webpush(title, body, level, category, **(push or {}))
+    except Exception as e:
+        log.warning("web push not queued: %s", e)
     if not notify_state["channels"]:
         return
     head = f"[{LEVEL_NAME.get(level, level.upper())}] {title}"
@@ -858,7 +862,8 @@ def log_event(nid, kind, level, msg, push=False, title=None):
         log.error("could not save event (%s): %s", e, msg)
     log.info("event [%s/%s] %s: %s", category, level, nid, msg)
     if push:
-        notify(title or f"{nid} {kind}", msg, level, category)
+        notify(title or f"{nid} {kind}", msg, level, category,
+               push={"tag": f"{nid}-{kind}", "url": "/#alerts" if level != "ok" else "/"})
 
 
 def fmt_time(ts):
@@ -1671,6 +1676,8 @@ def auth():
         g.role = "admin" if session.get("admin") == PW_TAG else "guest"
     if request.path.startswith("/google/"):
         return None
+    if request.path == "/api/push/unsubscribe":
+        return None
     m = re.fullmatch(r"/api/rain/(\d+)/answer", request.path)
     if m and _same(str(request.args.get("sig", "")), _rain_sig(int(m.group(1)))):
         return None
@@ -1732,7 +1739,7 @@ def index():
 
 APP_FILES = {"manifest.webmanifest": "application/manifest+json", "sw.js": "text/javascript",
              "icon-192.png": "image/png", "icon-512.png": "image/png", "icon-maskable.png": "image/png",
-             "apple-touch-icon.png": "image/png", "qrcode.js": "text/javascript"}
+             "apple-touch-icon.png": "image/png", "qrcode.js": "text/javascript", "badge-72.png": "image/png"}
 
 
 @app.get("/<name>")
@@ -1778,6 +1785,8 @@ def api_nodes():
                      "user": AIO_USER if g.role == "admin" else None},
         "alerts": _alerts_list(),
         "notify": {k: v for k, v in notify_state.items()},
+        "push": {"enabled": WEBPUSH_OK, "devices": _push_devices(), "last_ok": push_state["last_ok"],
+                 "last_error": push_state["last_error"]},
         "email": {**email_state, "daily_at": REPORT_TIME or None, "alerts": REPORT_ALERTS,
                   "to": REPORT_TO if g.role == "admin" else [_mask(a) for a in REPORT_TO]},
         "storage": {**storage_state, "pending": len(pending), "flush_s": FLUSH_S, "keep_days": KEEP_DAYS},
@@ -2226,7 +2235,7 @@ def _gh_devices():
     for sid, name in GH_SCENES.items():
         if sid == "scene--report" and not (SMTP_USER and SMTP_PASS and REPORT_TO):
             continue
-        if sid == "scene--summary" and not (SPEAKER_NAME or (SUMMARY_PUSH and notify_state["channels"])):
+        if sid == "scene--summary" and not (SPEAKER_NAME or (SUMMARY_PUSH and (notify_state["channels"] or _push_devices()))):
             continue
         devs.append({"id": sid, "type": "action.devices.types.SCENE", "traits": ["action.devices.traits.Scene"],
                      "name": {"name": name}, "willReportState": False, "attributes": {"sceneReversible": False}})
@@ -2965,10 +2974,18 @@ def build_summary(day=None):
             brief.append(f"Heads up: I'd put rain {ol['where']} in the next two hours at {round(ol['p'] * 100)}%.")
         if questions:
             brief.append("I've got a question for you on the dashboard about whether it rained.")
+        ob = next((o for o in (outlook()["nodes"] if WX_ENABLED else []) if o["place"] == "outdoor"), None)
         if tomorrow:
             rain_t = f", with a {tomorrow['rain_prob']:.0f}% chance of rain" if (tomorrow.get("rain_prob") or 0) >= 40 else ""
             verb = "brings" if tomorrow.get("code") in RAINY else "looks"
-            brief.append(f"Tomorrow {verb} {tomorrow['desc'] or 'much the same'}, {tomorrow['lo']:.0f} to {tomorrow['hi']:.0f}°{rain_t}.")
+            tm = (ob or {}).get("tomorrow") or {}
+            if tm.get("lo") is not None and tm.get("hi") is not None and tm.get("day") != day:
+                brief.append(f"Tomorrow {verb} {tomorrow['desc'] or 'much the same'}{rain_t}; {ob['where']} I expect "
+                             f"{tm['lo']:.0f} to {tm['hi']:.0f}°" + (", with the afternoon sun." if tm.get("sun") else "."))
+            else:
+                brief.append(f"Tomorrow {verb} {tomorrow['desc'] or 'much the same'}, {tomorrow['lo']:.0f} to {tomorrow['hi']:.0f}°{rain_t}.")
+        if ob and ob.get("dew") and hour >= 18:
+            brief.append(f"Dew is likely {ob['where']} around {_clock(ob['dew']['ts'])}.")
         brief.append(rnd.choice(["That's all for now.", "That's everything.", "That's the lot."]) if hour < 17
                      else rnd.choice(["That's all. Have a good evening!", "That's everything for today. Good night!",
                                       "That's it for today."]))
@@ -3025,6 +3042,19 @@ def build_summary(day=None):
                       f"{sc['false_alarms']} false alarm{'s' if sc['false_alarms'] != 1 else ''}; the forecast alone caught "
                       f"{sc['fc_caught']} with {sc['fc_false_alarms']}." if sc["rains"] else
                       f"Rain predictor, last 30 days: no rain yet, {sc['false_alarms']} false alarms (forecast {sc['fc_false_alarms']}).")
+        for o in (outlook()["nodes"] if is_today and WX_ENABLED else []):
+            tn, tm = o.get("tonight"), o.get("tomorrow") or {}
+            if o["place"] == "outdoor" and (tn or tm.get("hi") is not None):
+                bits = ([f"tonight's low about {tn['lo']:.1f}° around {_clock(tn['lo_t'])} (forecast {tn['fc_lo']:.1f}°)"] if tn else []) + \
+                       ([f"tomorrow's high about {tm['hi']:.1f}° around {_clock(tm['hi_t'])} (forecast {tm['fc_hi']:.1f}°)"]
+                        if tm.get("hi") is not None else [])
+                wl.append(f"{o['name']} outlook: " + "; ".join(bits) + ".")
+            elif o["place"] == "indoor" and tm:
+                wl.append(f"{o['name']} tomorrow: about {tm['lo']:.0f} to {tm['hi']:.0f}°.")
+        for nid, sc in (temp_score().items() if is_today else []):
+            if sc["calls"] >= 6:
+                wl.append(f"Temperature calls for {node_name(nid)}, last 30 days: off by {sc['off_by']}° on average"
+                          + (f" ({sc['base']}: {sc['base_off_by']}°)." if sc["base_off_by"] is not None else "."))
         if tomorrow:
             wl.append(f"Tomorrow: {tomorrow['desc']}, {tomorrow['lo']:.0f} to {tomorrow['hi']:.0f} degrees"
                       + (f", {tomorrow['rain_prob']:.0f}% chance of rain." if tomorrow.get("rain_prob") is not None else "."))
@@ -3122,8 +3152,8 @@ def speak(text, speaker=None):
 
 
 def queue_speak(text, push_title=None):
-    if push_title and SUMMARY_PUSH and notify_state["channels"]:
-        notify(push_title, text, "info", "summary")
+    if push_title and SUMMARY_PUSH:
+        notify(push_title, text, "info", "summary", push={"tag": "summary", "url": "/#overview"})
     if SPEAKER_NAME:
         try:
             speak_q.put_nowait(text)
@@ -3218,6 +3248,254 @@ def api_summary_speak():
     if not queue_speak(text):
         return jsonify(error="Busy - try again in a moment"), 503
     return jsonify(ok=True, speaker=SPEAKER_NAME)
+
+
+try:
+    from cryptography.hazmat.primitives import hashes, serialization
+    from cryptography.hazmat.primitives.asymmetric import ec
+    from cryptography.hazmat.primitives.asymmetric.utils import decode_dss_signature
+    from cryptography.hazmat.primitives.ciphers.aead import AESGCM
+    from cryptography.hazmat.primitives.kdf.hkdf import HKDF
+    WEBPUSH_OK = True
+except ImportError:
+    WEBPUSH_OK = False
+VAPID_PATH = os.path.join(CONF_DIR, "vapid.pem")
+PUSH_CATS = {"problems": True, "rain": True, "tips": False, "summary": True, "quiet": True}
+push_q = queue.Queue(maxsize=200)
+push_state = {"last_ok": None, "last_error": None, "sent": 0}
+_vapid = {}
+with db_lock:
+    db.execute("CREATE TABLE IF NOT EXISTS push_subs (endpoint TEXT PRIMARY KEY, p256dh TEXT, auth TEXT, prefs TEXT, "
+               "label TEXT, created REAL, last_ok REAL, fails INTEGER DEFAULT 0)")
+    db.commit()
+
+
+def _b64u(b):
+    return base64.urlsafe_b64encode(b).rstrip(b"=").decode()
+
+
+def _b64u_d(s):
+    return base64.urlsafe_b64decode(s + "=" * (-len(s) % 4))
+
+
+def _vapid_key():
+    if "key" not in _vapid:
+        try:
+            with open(VAPID_PATH, "rb") as f:
+                key = serialization.load_pem_private_key(f.read(), None)
+        except (OSError, ValueError):
+            key = ec.generate_private_key(ec.SECP256R1())
+            fd = os.open(VAPID_PATH, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+            with os.fdopen(fd, "wb") as f:
+                f.write(key.private_bytes(serialization.Encoding.PEM, serialization.PrivateFormat.PKCS8,
+                                          serialization.NoEncryption()))
+        _vapid["key"] = key
+        _vapid["pub"] = _b64u(key.public_key().public_bytes(serialization.Encoding.X962,
+                                                            serialization.PublicFormat.UncompressedPoint))
+    return _vapid["key"], _vapid["pub"]
+
+
+def _vapid_header(endpoint):
+    key, pub = _vapid_key()
+    aud = "{0.scheme}://{0.netloc}".format(urllib.parse.urlsplit(endpoint))
+    cached = _vapid.get(aud)
+    if cached and cached[1] > time.time() + 3600:
+        return cached[0]
+    exp = int(time.time()) + 12 * 3600
+    seg = lambda o: _b64u(json.dumps(o, separators=(",", ":")).encode())
+    signing = f"{seg({'typ': 'JWT', 'alg': 'ES256'})}.{seg({'aud': aud, 'exp': exp, 'sub': 'https://github.com/Gautham-Dev007/IoT_Pi32'})}"
+    r, s = decode_dss_signature(key.sign(signing.encode(), ec.ECDSA(hashes.SHA256())))
+    jwt = f"{signing}.{_b64u(r.to_bytes(32, 'big') + s.to_bytes(32, 'big'))}"
+    hdr = f"vapid t={jwt}, k={pub}"
+    _vapid[aud] = (hdr, exp)
+    return hdr
+
+
+def _hkdf(salt, ikm, info, n):
+    return HKDF(algorithm=hashes.SHA256(), length=n, salt=salt, info=info).derive(ikm)
+
+
+def push_encrypt(payload, p256dh, auth):
+    ua_pub = _b64u_d(p256dh)
+    secret = _b64u_d(auth)
+    eph = ec.generate_private_key(ec.SECP256R1())
+    as_pub = eph.public_key().public_bytes(serialization.Encoding.X962, serialization.PublicFormat.UncompressedPoint)
+    shared = eph.exchange(ec.ECDH(), ec.EllipticCurvePublicKey.from_encoded_point(ec.SECP256R1(), ua_pub))
+    ikm = _hkdf(secret, shared, b"WebPush: info\x00" + ua_pub + as_pub, 32)
+    salt = os.urandom(16)
+    cek = _hkdf(salt, ikm, b"Content-Encoding: aes128gcm\x00", 16)
+    nonce = _hkdf(salt, ikm, b"Content-Encoding: nonce\x00", 12)
+    body = AESGCM(cek).encrypt(nonce, payload + b"\x02", None)
+    return salt + (4096).to_bytes(4, "big") + bytes([len(as_pub)]) + as_pub + body
+
+
+def push_send(sub, msg, urgency="normal", ttl=86400):
+    endpoint, p256dh, auth = sub
+    data = push_encrypt(json.dumps(msg, separators=(",", ":")).encode(), p256dh, auth)
+    req = urllib.request.Request(endpoint, data=data, method="POST", headers={
+        "Authorization": _vapid_header(endpoint), "Content-Encoding": "aes128gcm",
+        "Content-Type": "application/octet-stream", "TTL": str(ttl), "Urgency": urgency})
+    try:
+        with urllib.request.urlopen(req, timeout=15) as r:
+            r.read()
+    except urllib.error.HTTPError as e:
+        if e.code in (404, 410):
+            with db_lock:
+                db.execute("DELETE FROM push_subs WHERE endpoint = ?", (endpoint,))
+                db.commit()
+            return False
+        raise RuntimeError(f"push service said {e.code}: {e.read()[:120]!r}") from None
+    return True
+
+
+def _push_devices():
+    with db_lock:
+        return db.execute("SELECT COUNT(*) FROM push_subs").fetchone()[0]
+
+
+def _push_cat(level, category, cat=None):
+    if cat:
+        return cat
+    if category == "summary":
+        return "summary"
+    if category == "insight":
+        return "tips"
+    return "problems"
+
+
+def _quiet_now():
+    h = time.localtime().tm_hour
+    return h >= 22 or h < 7
+
+
+def webpush(title, body, level="info", category="", cat=None, tag=None, url="/", actions=None, answer=None):
+    if not WEBPUSH_OK:
+        return
+    msg = {"title": title, "body": body, "level": level, "cat": _push_cat(level, category, cat), "tag": tag,
+           "url": url, "ts": int(time.time())}
+    if actions:
+        msg["actions"] = actions
+    if answer:
+        msg["answer"] = answer
+    try:
+        push_q.put_nowait(msg)
+    except queue.Full:
+        log.warning("push queue full, dropped: %s", title)
+
+
+def push_loop():
+    while True:
+        msg = push_q.get()
+        with db_lock:
+            subs = db.execute("SELECT endpoint, p256dh, auth, prefs FROM push_subs").fetchall()
+        for endpoint, p256dh, auth, prefs in subs:
+            try:
+                pr = {**PUSH_CATS, **json.loads(prefs or "{}")}
+            except ValueError:
+                pr = dict(PUSH_CATS)
+            if msg.get("only") and msg["only"] != endpoint:
+                continue
+            if not msg.get("only") and not pr.get(msg["cat"], False) and msg["level"] != "crit":
+                continue
+            m = dict(msg, silent=bool(pr.get("quiet") and _quiet_now() and msg["level"] != "crit"))
+            m.pop("only", None)
+            for attempt in range(3):
+                try:
+                    if push_send((endpoint, p256dh, auth), m, "high" if msg["level"] in ("crit", "warn") else "normal"):
+                        with db_lock:
+                            db.execute("UPDATE push_subs SET last_ok = ?, fails = 0 WHERE endpoint = ?", (time.time(), endpoint))
+                            db.commit()
+                        push_state.update(last_ok=time.time(), sent=push_state["sent"] + 1)
+                    break
+                except Exception as e:
+                    push_state["last_error"] = str(e)[:160]
+                    if attempt == 2:
+                        with db_lock:
+                            db.execute("UPDATE push_subs SET fails = fails + 1 WHERE endpoint = ?", (endpoint,))
+                            db.execute("DELETE FROM push_subs WHERE endpoint = ? AND fails >= 50", (endpoint,))
+                            db.commit()
+                    else:
+                        time.sleep(5 * (attempt + 1))
+
+
+def _valid_sub(sub):
+    try:
+        ep, k = str(sub["endpoint"]), sub["keys"]
+        if not ep.startswith("https://") or len(ep) > 1000:
+            return None
+        if len(_b64u_d(k["p256dh"])) != 65 or len(_b64u_d(k["auth"])) != 16:
+            return None
+        return ep, k["p256dh"], k["auth"]
+    except (KeyError, TypeError, ValueError):
+        return None
+
+
+@app.get("/api/push")
+def api_push():
+    out = {"enabled": WEBPUSH_OK, "cats": PUSH_CATS, **push_state}
+    if WEBPUSH_OK:
+        out["key"] = _vapid_key()[1]
+    with db_lock:
+        out["devices"] = [{"label": r[0], "since": r[1], "last_ok": r[2]} for r in
+                          db.execute("SELECT label, created, last_ok FROM push_subs ORDER BY created")]
+    ep = request.args.get("endpoint")
+    if ep:
+        with db_lock:
+            r = db.execute("SELECT prefs FROM push_subs WHERE endpoint = ?", (ep,)).fetchone()
+        out["this"] = {**PUSH_CATS, **json.loads(r[0] or "{}")} if r else None
+    if g.role != "admin":
+        out["devices"] = len(out["devices"])
+    return jsonify(out)
+
+
+@app.post("/api/push/subscribe")
+def api_push_subscribe():
+    if not WEBPUSH_OK:
+        return jsonify(error="Notifications need python3-cryptography on the Pi: sudo apt install python3-cryptography"), 503
+    body = request.get_json(silent=True) or {}
+    sub = _valid_sub(body.get("subscription") or {})
+    if not sub:
+        return jsonify(error="bad subscription"), 400
+    old = None
+    if body.get("replaces"):
+        with db_lock:
+            old = db.execute("SELECT prefs, label FROM push_subs WHERE endpoint = ?", (str(body["replaces"]),)).fetchone()
+            db.execute("DELETE FROM push_subs WHERE endpoint = ?", (str(body["replaces"]),))
+            db.commit()
+    given = body.get("prefs") or (json.loads(old[0]) if old and old[0] else {})
+    prefs = {k: bool(given.get(k, v)) for k, v in PUSH_CATS.items()}
+    label = re.sub(r"[^\w .,()/-]", "", str(body.get("label") or (old[1] if old else "")))[:60] or "Device"
+    with db_lock:
+        db.execute("INSERT INTO push_subs (endpoint, p256dh, auth, prefs, label, created, fails) VALUES (?,?,?,?,?,?,0) "
+                   "ON CONFLICT(endpoint) DO UPDATE SET p256dh = excluded.p256dh, auth = excluded.auth, "
+                   "prefs = excluded.prefs, label = excluded.label", (*sub, json.dumps(prefs), label, time.time()))
+        db.commit()
+    return jsonify(ok=True, prefs=prefs)
+
+
+@app.post("/api/push/unsubscribe")
+def api_push_unsubscribe():
+    ep = str((request.get_json(silent=True) or {}).get("endpoint", ""))
+    with db_lock:
+        n = db.execute("DELETE FROM push_subs WHERE endpoint = ?", (ep,)).rowcount
+        db.commit()
+    return jsonify(ok=True, removed=n)
+
+
+@app.post("/api/push/test")
+def api_push_test():
+    ep = str((request.get_json(silent=True) or {}).get("endpoint", ""))
+    with db_lock:
+        known = db.execute("SELECT 1 FROM push_subs WHERE endpoint = ?", (ep,)).fetchone()
+    if not known:
+        return jsonify(error="This device isn't subscribed"), 404
+    msg = {"title": "IoT Hub", "body": f"Notifications are working on this device. Sent {fmt_time(time.time())}.",
+           "level": "info", "cat": "problems", "tag": "test", "url": "/", "ts": int(time.time()), "only": ep}
+    try:
+        push_q.put_nowait(msg)
+    except queue.Full:
+        return jsonify(error="busy, try again"), 503
+    return jsonify(ok=True)
 
 
 WX_LAT = cfg.get("WEATHER_LAT", "")
@@ -3353,6 +3631,7 @@ RAIN_FEATURES = ["hum", "rise1h", "rise3h", "tchange1h", "spread", "hum_vs_city"
 RAIN_PRIOR = [2.0, 2.5, 1.0, -1.5, -2.0, 0.5, -0.3, 3.0, 1.0, -0.8, 1.0, 0.0]
 RAIN_PRIOR_B = -5.0
 RAIN_REF = [0.65, 0, 0, 0, 1.0, 0, 0, 0.1, 0, 0, 0.4, 0.5]
+RAIN_LIKE = [0.9, 0.5, 0.4, -0.5, 0.15, 0.2, -0.2, 0.7, 1.0, -0.5, 0.9, 0.5]
 with db_lock:
     db.execute("CREATE TABLE IF NOT EXISTS rain_checks (id INTEGER PRIMARY KEY, ts REAL, node TEXT, forecast INTEGER, "
                "fc_desc TEXT, sensor INTEGER, rise REAL, peak REAL, pred REAL, asked REAL, answer TEXT, answered REAL)")
@@ -3670,6 +3949,20 @@ REASON = {
 }
 
 
+AGAINST = {
+    "hum": lambda r: f"humidity is only {r['hum']:.0f}%",
+    "rise1h": lambda r: "humidity isn't climbing",
+    "rise3h": lambda r: "humidity has been falling",
+    "tchange1h": lambda r: "it's warming, not cooling",
+    "spread": lambda r: f"the air is far from saturation (dew point {r['spread']:.0f}° below)",
+    "hum_vs_city": lambda r: "it's drier here than the city reading",
+    "fc_prob": lambda r: f"the forecast gives only {r['fc_prob'] or 0:.0f}%",
+    "fc_rain": lambda r: "no rain in the forecast for the next two hours",
+    "pressure3h": lambda r: "air pressure is steady or rising",
+    "cloud": lambda r: f"skies are fairly clear ({r['cloud'] or 0:.0f}% cloud)",
+}
+
+
 def rain_outlook(force=False):
     now = time.time()
     if not force and rain_state["outlook"] is not None and now - rain_state["outlook_at"] < 300:
@@ -3686,10 +3979,12 @@ def rain_outlook(force=False):
         contrib = sorted(((m["w"][i] * (x[i] - RAIN_REF[i]), RAIN_FEATURES[i]) for i in range(len(x))), reverse=True)
         why = [REASON[f](raw) for v, f in contrib if v > 0.35 and f in REASON][:3]
         against = [f for v, f in contrib if v < -0.5]
+        gap = sorted((m["w"][i] * (x[i] - RAIN_LIKE[i]), RAIN_FEATURES[i]) for i in range(len(x)))
+        why_not = [AGAINST[f](raw) for v, f in gap if v < -0.6 and f in AGAINST][:3]
         res = {"node": nid, "name": node_name(nid), "where": _where(nid), "p": round(p, 3),
                "forecast": raw["fc_prob"], "why": why, "raw": {k: (round(v, 1) if isinstance(v, float) else v)
                                                               for k, v in raw.items()},
-               "dry_air": "spread" in against or "hum" in against, "trained": m.get("trained"),
+               "dry_air": "spread" in against or "hum" in against, "why_not": why_not, "trained": m.get("trained"),
                "examples": m.get("n", 0), "rain_examples": m.get("pos", 0)}
         break
     rain_state.update(outlook=res, outlook_at=now)
@@ -3782,7 +4077,10 @@ def rain_check_tick():
                     acts = (f"http, Yes it rained, {u}yes, method=POST, clear=true; "
                             f"http, No it stayed dry, {u}no, method=POST, clear=true; view, Not sure, {base}/#overview")
                 notify("Quick question", f"{q} {why} Your answer teaches the rain predictor."
-                       + ("" if acts else " Answer on the dashboard."), "info", "insight", actions=acts)
+                       + ("" if acts else " Answer on the dashboard."), "info", "insight", actions=acts,
+                       push={"cat": "rain", "tag": f"rainq-{cid}", "url": "/#overview",
+                             "actions": [{"action": "yes", "title": "Yes, it rained"}, {"action": "no", "title": "No, stayed dry"}],
+                             "answer": {"id": cid, "sig": _rain_sig(cid)}})
 
 
 def rain_loop():
@@ -3833,6 +4131,240 @@ def _vs_forecast(rows, wx):
     return {"sun": spans, "vs_forecast": round(sum(rest) / len(rest), 1) if len(rest) >= 3 else None}
 
 
+with db_lock:
+    db.execute("CREATE TABLE IF NOT EXISTS temp_preds (day TEXT, node TEXT, kind TEXT, pred REAL, base REAL, made REAL, "
+               "PRIMARY KEY (day, node, kind))")
+    db.execute("CREATE TABLE IF NOT EXISTS disk_hist (day TEXT PRIMARY KEY, used REAL, total REAL)")
+    db.commit()
+_outl = {"at": 0, "data": None}
+
+
+def _q15(nid, metric, t0, t1):
+    with db_lock:
+        rows = db.execute("SELECT CAST(ts / 900 AS INTEGER), AVG(value) FROM readings WHERE node = ? AND metric = ? "
+                          "AND ts >= ? AND ts < ? GROUP BY 1", (nid, metric, t0, t1)).fetchall()
+    return dict(rows)
+
+
+def _near(q, ts):
+    vals = [q[k] for k in range(int((ts - 1800) // 900), int((ts + 1800) // 900) + 1) if k in q]
+    return sum(vals) / len(vals) if vals else None
+
+
+def _median(xs):
+    xs = sorted(xs)
+    n = len(xs)
+    return None if not n else (xs[n // 2] if n % 2 else (xs[n // 2 - 1] + xs[n // 2]) / 2)
+
+
+def _sunny(r):
+    h = time.localtime(r[0]).tm_hour
+    return 8 <= h < 17 and (r[8] if r[8] is not None else 50) < 50
+
+
+def _offsets(nid, days=14):
+    now = time.time()
+    wx = weather_rows(now - days * 86400, now)
+    qt, qh = _q15(nid, "temp", now - days * 86400 - 3600, now), _q15(nid, "hum", now - days * 86400 - 3600, now)
+    t_by, h_by, t_all, h_all = collections.defaultdict(list), collections.defaultdict(list), [], []
+    for r in wx:
+        hr = time.localtime(r[0]).tm_hour
+        v = _near(qt, r[0])
+        if v is not None and r[1] is not None:
+            t_by[(hr, _sunny(r))].append(v - r[1])
+            t_by[(hr, None)].append(v - r[1])
+            t_all.append(v - r[1])
+        v = _near(qh, r[0])
+        if v is not None and r[2] is not None:
+            h_by[hr].append(v - r[2])
+            h_all.append(v - r[2])
+    if len(t_all) < 24:
+        return None
+    return {"t": {k: _median(v) for k, v in t_by.items() if len(v) >= 3}, "t_all": _median(t_all),
+            "h": {k: _median(v) for k, v in h_by.items() if len(v) >= 3}, "h_all": _median(h_all) if h_all else 0.0,
+            "hours": len(t_all)}
+
+
+def _next_9am(ts):
+    lt = time.localtime(ts)
+    nine = time.mktime((lt.tm_year, lt.tm_mon, lt.tm_mday, 9, 0, 0, 0, 0, -1))
+    return nine if nine > ts + 3600 else nine + 86400
+
+
+def _outdoor_outlook(nid, now):
+    off = _offsets(nid)
+    if not off:
+        return None
+    fut = weather_rows(now - 1800, now + 36 * 3600)
+    series = []
+    for r in fut:
+        if r[1] is None:
+            continue
+        hr = time.localtime(r[0]).tm_hour
+        o = off["t"].get((hr, _sunny(r)), off["t"].get((hr, None), off["t_all"]))
+        ho = off["h"].get(hr, off["h_all"])
+        series.append({"ts": r[0], "pred": round(r[1] + o, 1), "fc": r[1],
+                       "hum": round(min(100.0, max(0.0, (r[2] or 0) + ho)), 0) if r[2] is not None else None,
+                       "dew": r[3], "sun": _sunny(r) and o >= 3})
+    if not series:
+        return None
+    morning = _next_9am(now)
+    night = [p for p in series if now <= p["ts"] <= morning]
+    tmr_day = day_of(morning)
+    t0, t1 = day_bounds(tmr_day)
+    tday = [p for p in series if t0 <= p["ts"] < t1]
+    daytime = [p for p in tday if 9 <= time.localtime(p["ts"]).tm_hour < 18]
+    out = {"node": nid, "name": node_name(nid), "where": _where(nid), "place": "outdoor", "learned_hours": off["hours"],
+           "series": [[p["ts"], p["pred"], p["fc"]] for p in series if p["ts"] <= now + 24 * 3600]}
+    if night:
+        lo = min(night, key=lambda p: p["pred"])
+        out["tonight"] = {"lo": lo["pred"], "lo_t": lo["ts"], "fc_lo": min(p["fc"] for p in night)}
+        dew = next((p for p in night if (p["hum"] or 0) >= 94), None)
+        if dew:
+            out["dew"] = {"ts": dew["ts"], "hum": dew["hum"]}
+    if daytime:
+        hi = max(daytime, key=lambda p: p["pred"])
+        out["tomorrow"] = {"day": tmr_day, "hi": hi["pred"], "hi_t": hi["ts"], "fc_hi": max(p["fc"] for p in daytime),
+                           "sun": hi["sun"]}
+        if len(tday) >= 20:
+            out["tomorrow"].update(lo=min(p["pred"] for p in tday), fc_lo=min(p["fc"] for p in tday))
+    return out
+
+
+def _wx_daily(days=21):
+    now = time.time()
+    by = collections.defaultdict(list)
+    for r in weather_rows(now - days * 86400, now + 3 * 86400):
+        if r[1] is not None:
+            by[day_of(r[0])].append(r[1])
+    return {d: (min(v), max(v)) for d, v in by.items() if len(v) >= 20}
+
+
+def _fit(xs, ys):
+    n = len(xs)
+    mx, my = sum(xs) / n, sum(ys) / n
+    vx = sum((x - mx) ** 2 for x in xs)
+    b = sum((x - mx) * (y - my) for x, y in zip(xs, ys)) / vx if vx > 1.0 else 0.0
+    b = min(max(b, 0.0), 1.2)
+    return my - b * mx, b
+
+
+def _indoor_outlook(nid, now):
+    wxd = _wx_daily()
+    today = day_of(now)
+    with db_lock:
+        rows = db.execute("SELECT day, min, max FROM daily WHERE node = ? AND metric = 'temp' AND day >= ? AND day < ?",
+                          (nid, day_of(now - 21 * 86400), today)).fetchall()
+    pairs = [(wxd[d], (lo, hi)) for d, lo, hi in rows if d in wxd]
+    tmr = day_of(_next_9am(now))
+    if len(pairs) < 5 or tmr not in wxd:
+        return None
+    a_hi, b_hi = _fit([p[0][1] for p in pairs], [p[1][1] for p in pairs])
+    a_lo, b_lo = _fit([p[0][0] for p in pairs], [p[1][0] for p in pairs])
+    o_lo, o_hi = wxd[tmr]
+    last = max(rows)
+    return {"node": nid, "name": node_name(nid), "where": _where(nid), "place": "indoor", "learned_days": len(pairs),
+            "tomorrow": {"day": tmr, "lo": round(a_lo + b_lo * o_lo, 1), "hi": round(a_hi + b_hi * o_hi, 1),
+                         "base_lo": last[1], "base_hi": last[2], "follows": round(b_hi, 2)}}
+
+
+def _disk_outlook():
+    with db_lock:
+        rows = db.execute("SELECT day, used, total FROM disk_hist ORDER BY day").fetchall()[-60:]
+    if len(rows) < 7:
+        return {"days_of_data": len(rows)}
+    t = [time.mktime(time.strptime(d, "%Y-%m-%d")) / 86400 for d, _u, _t in rows]
+    a, b = _fit_free(t, [u for _d, u, _t in rows])
+    used, total = rows[-1][1], rows[-1][2]
+    out = {"used_gb": used, "total_gb": total, "gb_per_month": round(b * 30, 2), "days_of_data": len(rows)}
+    limit = total * DISK_FULL_PCT / 100
+    if b > 0.002 and used < limit:
+        out["full_in_days"] = int((limit - used) / b)
+    return out
+
+
+def _fit_free(xs, ys):
+    n = len(xs)
+    mx, my = sum(xs) / n, sum(ys) / n
+    vx = sum((x - mx) ** 2 for x in xs) or 1.0
+    b = sum((x - mx) * (y - my) for x, y in zip(xs, ys)) / vx
+    return my - b * mx, b
+
+
+def temp_score(days=30):
+    since = day_of(time.time() - days * 86400)
+    with db_lock:
+        rows = db.execute("SELECT p.node, p.kind, p.pred, p.base, d.min, d.max FROM temp_preds p JOIN daily d "
+                          "ON d.day = p.day AND d.node = p.node AND d.metric = 'temp' WHERE p.day >= ? AND p.day < ?",
+                          (since, day_of(time.time()))).fetchall()
+    out = {}
+    for nid, kind, pred, base, lo, hi in rows:
+        real = hi if kind == "hi" else lo
+        e = out.setdefault(nid, {"n": 0, "err": 0.0, "base_err": 0.0, "base_n": 0})
+        e["n"] += 1
+        e["err"] += abs(pred - real)
+        if base is not None:
+            e["base_n"] += 1
+            e["base_err"] += abs(base - real)
+    return {n: {"calls": e["n"], "off_by": round(e["err"] / e["n"], 1),
+                "base_off_by": round(e["base_err"] / e["base_n"], 1) if e["base_n"] else None,
+                "base": "forecast" if is_outdoor(n) else "same as the day before"} for n, e in out.items()}
+
+
+def outlook(force=False):
+    now = time.time()
+    if not force and _outl["data"] is not None and now - _outl["at"] < 600:
+        return _outl["data"]
+    with state_lock:
+        ids = sorted(k for k in nodes if k != PI_ID)
+    res = []
+    for nid in ids:
+        try:
+            o = (_outdoor_outlook if is_outdoor(nid) else _indoor_outlook)(nid, now) if WX_ENABLED else None
+        except (sqlite3.Error, ValueError, ZeroDivisionError) as e:
+            log.warning("outlook for %s failed: %s", nid, e)
+            o = None
+        if o:
+            res.append(o)
+    data = {"nodes": res, "score": temp_score(), "disk": _disk_outlook(), "generated": now}
+    _outl.update(at=now, data=data)
+    return data
+
+
+def predict_loop():
+    time.sleep(90)
+    while True:
+        try:
+            now = time.time()
+            data = outlook(force=True)
+            if time.localtime(now).tm_hour >= 18:
+                with db_lock:
+                    for o in data["nodes"]:
+                        tm = o.get("tomorrow") or {}
+                        for kind in ("lo", "hi"):
+                            if tm.get(kind) is None:
+                                continue
+                            base = tm.get("fc_" + kind) if o["place"] == "outdoor" else tm.get("base_" + kind)
+                            db.execute("INSERT OR IGNORE INTO temp_preds VALUES (?,?,?,?,?,?)",
+                                       (tm["day"], o["node"], kind, tm[kind], base, now))
+                    db.commit()
+            with state_lock:
+                pi = dict((nodes.get(PI_ID) or {}).get("info") or {})
+            if pi.get("disk_used_gb") is not None:
+                with db_lock:
+                    db.execute("INSERT OR REPLACE INTO disk_hist VALUES (?,?,?)",
+                               (day_of(now), pi["disk_used_gb"], pi["disk_total_gb"]))
+                    db.commit()
+        except Exception as e:
+            log.warning("prediction refresh failed: %s", e)
+        time.sleep(1800)
+
+
+@app.get("/api/outlook")
+def api_outlook():
+    return jsonify(outlook())
+
+
 def live_insights():
     out = []
     now = time.time()
@@ -3845,8 +4377,9 @@ def live_insights():
     daytime = 8 <= time.localtime(now).tm_hour < 17
     with state_lock:
         snap = {k: (v.get("temp"), v.get("hum"), v.get("status")) for k, v in nodes.items() if k != PI_ID}
-    look = rain_outlook() if any(is_outdoor(k) for k in snap) else None
-    sig = rain_signature() if look else None
+    has_out = any(is_outdoor(k) for k in snap)
+    look = rain_outlook() if has_out else None
+    sig = rain_signature() if has_out else None
     for nid, (t, h, st) in snap.items():
         if st != "online" or t is None:
             continue
@@ -3879,6 +4412,12 @@ def live_insights():
                 out.append({"key": f"sun:{nid}", "level": "info", "icon": "sun",
                             "text": f"{subj} sensor is probably in direct sun: it reads {t:.0f}°, about "
                                     f"{t - cur['temp']:.0f}° above the air temperature in {WX_PLACE or 'your area'}."})
+            ol = next((o for o in outlook()["nodes"] if o["node"] == nid), None) if WX_ENABLED else None
+            if ol and ol.get("dew") and time.localtime(now).tm_hour >= 18 and ol["dew"]["ts"] - now <= 12 * 3600:
+                out.append({"key": f"dew:{nid}", "level": "tip", "icon": "drop",
+                            "text": f"Dew likely {where} around {_clock(ol['dew']['ts'])}"
+                                    + (f" (humidity heading to {ol['dew']['hum']:.0f}%)" if ol["dew"].get("hum") else "")
+                                    + ". Bring in cushions, or cover anything that shouldn't get damp."})
             f = feels_like(t, h)
             if f is not None and f >= 38:
                 out.append({"key": f"heat:{nid}", "level": "warn", "icon": "heat",
@@ -3930,7 +4469,7 @@ def check_insights():
     now = time.time()
     for ins in live_insights():
         kind = ins["key"].split(":")[0]
-        if kind in ("rain", "rainnow") and not RAIN_ALERTS or kind in ("vent", "mould", "heat") and not TIPS_ALERTS:
+        if kind in ("rain", "rainnow") and not RAIN_ALERTS or kind in ("vent", "mould", "heat", "dew") and not TIPS_ALERTS:
             continue
         if ins["key"] == "rain:forecast" or kind in ("drying", "sun"):
             continue
@@ -3940,7 +4479,8 @@ def check_insights():
             continue
         insight_sent[ins["key"]] = now
         notify({"rain": "Rain on the way", "rainnow": "Raining now", "mould": "Damp air", "vent": "Cooler outside",
-                "heat": "Feels hot"}.get(kind, "Tip"), ins["text"], "info", "insight")
+                "heat": "Feels hot", "dew": "Dew tonight"}.get(kind, "Tip"), ins["text"], "info", "insight",
+               push={"cat": "rain" if kind in ("rain", "rainnow") else "tips", "tag": ins["key"], "url": "/#overview"})
 
 
 @app.get("/api/rain")
@@ -4176,7 +4716,7 @@ def main():
         clock_ready(verified=True)
     for fn in (pi_loop, adafruit_loop, flush_loop, cleanup_loop, time_loop, notify_loop, alert_loop, email_loop,
                report_loop, outage_loop, gh_loop, speak_loop, summary_loop,
-               weather_loop, rain_loop):
+               weather_loop, rain_loop, push_loop, predict_loop):
         spawn(fn)
     log.info("Dashboard on http://0.0.0.0:%d  (Adafruit IO %s, alerts via %s, disk writes every %d s)", PORT,
              "on" if AIO_USER and AIO_KEY else "off", ", ".join(notify_state["channels"]) or "nothing", FLUSH_S)
