@@ -83,13 +83,19 @@ reports and over-the-air updates. Built to keep every reading through Wi-Fi drop
 
 | | |
 | --- | --- |
+| **Made for every screen** | Phones get bottom tabs and a "More" sheet, tablets and split-screen windows a slim icon menu, laptops the full menu. Each panel adapts to the space it actually has, buttons grow for fingers, dialogs become bottom sheets, and it respects notches and the system's dark or light mode. |
 | **Dashboard anywhere** | Live readings, any-day history, daily min/avg/max, the outlook, alerts, interruptions and hub health. Public over HTTPS with Tailscale Funnel, guest view by default, admin sign-in for controls, a QR code to share it. Dark and light mode. Installs as an app on phones and desktops. |
-| **App notifications** | Straight from the hub to the installed app (Web Push), no extra app or account. Each device picks problems, rain, the evening summary and tips; quiet at night; critical alerts always ring. |
+| **Notifications that don't nag** | Every message is listed on the Activity page; only what's worth interrupting you for reaches the phone. A node must be gone for a few minutes before "offline" is sent, quick blips stay in the inbox, nothing is repeated within its cool-down (even across restarts), something that keeps flipping is sent once as "again and again", and there's an hourly limit and quiet hours. |
+| **App notifications** | Straight from the hub to the installed app (Web Push), no extra app or account. Each device picks problems, rain, the evening summary and tips; critical alerts always ring. With the app on a phone, ntfy only sends critical alerts, so nothing arrives twice. |
+| **Settings in the app** | Notification rules, quiet hours, the summary time, rain questions and tips, alert limits and node names, all on the Settings page. No SSH needed for everyday changes. |
 | **ntfy, Telegram and email** | Push alerts with ntfy (free, no account) and/or Telegram, with the same answer buttons. Email reports with charts to any address, daily or on demand. |
 | **Google Home** | Every node is a sensor ("what's the temperature on the balcony"), its LED a light, plus "find" and "restart" scenes, today's high and low, a spoken day summary and the hub itself. No Matter hub needed. |
 | **Readable LED** | Each node's RGB LED shows its state with smooth animations, plus a rainbow "find me" mode. |
 
 ## 2. Screenshots
+
+<p align="center"><img src="docs/images/devices.png" alt="The dashboard on a phone with the bottom tab bar and More sheet, in a split-screen window with the slim side menu, and on a laptop with the full side menu" width="900"></p>
+<p align="center"><sub>One web app for every screen: bottom tabs on phones, a slim menu in split-screen and on tablets, the full menu on laptops. Panels rearrange to the space they get.</sub></p>
 
 <table>
 <tr>
@@ -105,6 +111,10 @@ reports and over-the-air updates. Built to keep every reading through Wi-Fi drop
 <tr>
 <td><img src="docs/images/nodes.png" alt="Node cards for Balcony (outdoor) and Living room (indoor) with LED, interval, restart and name controls"><br><sub><b>Nodes</b> – readings first, technical details folded away; admins get brightness, find, interval, restart, and the name and place.</sub></td>
 <td><img src="docs/images/hub.png" alt="Hub page: CPU, temperature, memory, SD card, network, broker, connections, email reports, alert rules"><br><sub><b>Hub</b> – Pi health, connections (MQTT, Adafruit IO, Google Home, ntfy, app notifications), email reports, alert rules, storage, background jobs.</sub></td>
+</tr>
+<tr>
+<td width="50%"><img src="docs/images/inbox.png" alt="Activity page: every notification by day, marked sent to phone or kept quiet with the reason, next to open problems"><br><sub><b>Activity</b> – everything the hub had to say, by day; what was sent to the phone and why the rest was kept quiet; open problems alongside.</sub></td>
+<td width="50%"><img src="docs/images/settings.png" alt="Settings page: notifications, quiet hours, hourly limit, offline delay, daily summary, rain and tips, alert limits, node names"><br><sub><b>Settings</b> – notification rules, summary, rain and tips, alert limits, node names.</sub></td>
 </tr>
 <tr>
 <td align="center"><img src="docs/images/notifications.png" alt="Notifications dialog: on for this device, with choices for problems, rain, evening summary, tips and quiet at night" width="330"><br><sub><b>Notifications</b> – per device: what it gets, and quiet hours.</sub></td>
@@ -308,10 +318,15 @@ nodes get ventilation, damp and heat tips. After renaming, say "Hey Google, sync
 
 ### 6.2 Turn on notifications
 
-Open the HTTPS link on the phone or laptop, sign in as admin and tap **Notify** → **Turn on**. Choose
+Open the HTTPS link on the phone or laptop, sign in as admin, open **Activity** → **Phone notifications** → **Turn on**. Choose
 what that device gets: problems, rain (including questions with answer buttons), the evening summary,
 tips, and whether to stay quiet from 10 PM to 7 AM. Critical alerts always ring. On iPhone, add the
 dashboard to the Home Screen first and turn notifications on from there.
+
+**Activity** lists everything the hub said, including what it kept quiet and why; its badge counts open
+problems, or unread notifications when there are none. How chatty it is
+(quiet hours, an hourly limit, how long a node must be offline, "back to normal" messages, whether ntfy
+also sends) is on the **Settings** page.
 
 ### 6.3 Answer "did it rain?"
 
@@ -378,7 +393,8 @@ public link, ready to scan with a phone camera. Visitors see a read-only guest v
 | Node never joins `IoTHub` | set `AP_PASS` in `secrets.h` to the password used in `setup-network.sh` |
 | `ota-push` says node not online | the node must be connected to the Pi's broker; check `iothub nodes` |
 | Can't install the app or turn on notifications | use the HTTPS Funnel link, not the plain `http://` address; on iPhone add it to the Home Screen first |
-| Notify says the hub needs a package | `sudo apt install python3-cryptography`, then `iothub restart` |
+| Too many notifications | Settings → lower "At most … an hour", raise "Offline alerts after", set "Back to normal" to Never; if ntfy and the app both ring, set ntfy to Automatic |
+| Notifications dialog says the hub needs a package | `sudo apt install python3-cryptography`, then `iothub restart` |
 | No Outlook card | needs `setup-weather.sh` and about a day of readings; rain predictions need a node marked outdoor |
 | Gaps after a power cut | normal if the node lost power too; give nodes their own supply |
 | Under-voltage warnings | use a 5.1 V 3 A supply for the Pi |

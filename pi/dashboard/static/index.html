@@ -61,8 +61,19 @@ a { color: var(--accent); }
 .nav .count { margin-left: auto; min-width: 20px; padding: 0 6px; border-radius: 10px; font-size: 12px; text-align: center;
               background: var(--crit); color: #fff; font-weight: 600; }
 .nav .count.warn { background: var(--warn); }
-.rail-foot { margin-top: auto; padding: 10px 8px 0; border-top: 1px solid var(--rule); font-size: 12.5px; color: var(--ink-3); display: grid; gap: 6px; }
-main { min-width: 0; padding: 22px clamp(16px, 3vw, 36px) 48px; max-width: 1320px; width: 100%; }
+.rail-foot { margin-top: auto; padding: 12px 6px 0; border-top: 1px solid var(--rule); font-size: 12.5px; color: var(--ink-3); display: grid; gap: 10px; }
+.rail .nav { width: 100%; border: 0; background: none; cursor: pointer; font-size: 14.5px; text-align: left; }
+.more-btn { display: none !important; }
+.acct { display: grid; gap: 6px; }
+.acct .btn, .foot-btns .btn { width: 100%; justify-content: center; }
+.foot-btns { display: grid; gap: 6px; }
+.foot-meta { display: grid; gap: 4px; }
+.nav .count.dot { min-width: 8px; height: 8px; padding: 0; border-radius: 50%; }
+.nav .count.unread { background: var(--accent); color: var(--accent-ink); }
+.rail { overflow-y: auto; scrollbar-width: thin; }
+main { min-width: 0; padding: 22px clamp(16px, 3vw, 36px) 48px; max-width: 1360px; width: 100%; margin-inline: auto;
+       container: main / inline-size; }
+.panel, .readout { container-type: inline-size; }
 
 .topline { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 18px; margin-bottom: 18px; }
 .verdict { font-size: 21px; font-weight: 500; margin: 0; letter-spacing: -.1px; }
@@ -87,7 +98,7 @@ main { min-width: 0; padding: 22px clamp(16px, 3vw, 36px) 48px; max-width: 1320p
 .two + .panel, .panel + .two, .two + .two { margin-top: 18px; }
 .groups > div { min-width: 0; }
 .two > .panel + .panel { margin-top: 0; }
-@media (max-width: 1100px) { .two { grid-template-columns: 1fr; } .two > .panel + .panel { margin-top: 0; } }
+@container main (max-width: 980px) { .two { grid-template-columns: minmax(0, 1fr); } .act-two #probPanel { order: -1; } }
 
 .seg { display: inline-flex; border: 1px solid var(--rule-2); border-radius: 8px; overflow: hidden; background: var(--panel); }
 .seg button { border: 0; background: none; padding: 5px 11px; font-size: 13px; color: var(--ink-2); cursor: pointer; }
@@ -141,7 +152,7 @@ select.btn, input.btn { cursor: auto; }
 .chart.mini { height: 170px; }
 .duo { display: grid; gap: 14px 28px; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
 .duo.stacked { grid-template-columns: minmax(0, 1fr); }
-@media (max-width: 1100px) { .duo { grid-template-columns: minmax(0, 1fr); } }
+@container (max-width: 760px) { .duo { grid-template-columns: minmax(0, 1fr); } }
 .chart-label { font-size: 13px; font-weight: 500; color: var(--ink-2); margin: 0 0 2px; }
 .report-form { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 14px; }
 .report-form input { flex: 1; min-width: 200px; }
@@ -180,8 +191,39 @@ select.btn, input.btn { cursor: auto; }
 #pushDlg label { display: grid; grid-template-columns: 20px 1fr; gap: 8px; align-items: start; font-size: 14.5px; cursor: pointer; }
 #pushDlg label input { margin-top: 3px; } #pushDlg label small { display: block; color: var(--ink-3); font-size: 12.5px; }
 #pushDlg .row { justify-content: flex-end; }
-#pushBtn.on { border-color: var(--accent); color: var(--accent); }
-@media (max-width: 560px) { #pushBtn span { display: none; } }
+.btn.bell, .btn.icon { position: relative; display: inline-flex; align-items: center; justify-content: center; padding-left: 9px; padding-right: 9px; }
+.badge { position: absolute; top: -6px; right: -6px; min-width: 18px; height: 18px; padding: 0 5px; border-radius: 9px; background: var(--crit);
+         color: #fff; font-size: 11px; font-weight: 700; line-height: 18px; text-align: center; font-family: var(--ui); }
+
+.ib-list { margin: 0 -20px; }
+.ib-day { font-size: 12px; font-weight: 600; letter-spacing: .4px; text-transform: uppercase; color: var(--ink-3); padding: 14px 18px 6px; }
+.nt { display: grid; grid-template-columns: 10px 1fr; gap: 0 12px; padding: 10px 18px; color: inherit; text-decoration: none; border-left: 3px solid transparent; }
+.nt:hover { background: var(--sunken); }
+.nt.unread { border-left-color: var(--accent); }
+.nt i { width: 8px; height: 8px; border-radius: 50%; margin-top: 7px; background: var(--ink-3); }
+.nt.crit i { background: var(--crit); } .nt.warn i { background: var(--warn); } .nt.ok i { background: var(--ok); } .nt.rain i { background: var(--info); }
+.nt b { font-size: 14.5px; font-weight: 600; display: block; } .nt.quiet b { font-weight: 500; color: var(--ink-2); }
+.nt p { margin: 2px 0 0 !important; font-size: 13.5px; color: var(--ink-2) !important; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+.nt small { display: block; margin-top: 4px; font-size: 12px; color: var(--ink-3); }
+.nt small .sent { color: var(--accent); }
+.set-grid > .panel { margin: 0; }
+.set-grid { display: grid; gap: 18px; grid-template-columns: repeat(auto-fit, minmax(min(380px, 100%), 1fr)); align-items: start; }
+@container (max-width: 420px) { .set-row { flex-wrap: wrap; } .set-row > :last-child { margin-left: auto; } .lim-grid { grid-template-columns: minmax(0, 1fr); } }
+.set-row { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 12px 0; border-top: 1px solid var(--rule); cursor: default; }
+.set-row b { display: block; font-size: 14.5px; font-weight: 600; } .set-row small { display: block; font-size: 12.5px; color: var(--ink-3); margin-top: 2px; max-width: 46ch; }
+.set-row > :last-child { flex: none; }
+.pair { display: inline-flex; align-items: center; gap: 6px; font-size: 13.5px; color: var(--ink-2); }
+.btn.num { width: 76px; text-align: right; }
+.set-foot { font-size: 12.5px; color: var(--ink-3); margin: 10px 0 0; }
+.set-note { margin: 0 0 14px; color: var(--ink-3); }
+.lim-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px 18px; }
+.lim-grid label { display: grid; gap: 6px; font-size: 13.5px; color: var(--ink-2); }
+.s-node { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; gap: 8px; align-items: center; padding: 10px 0; border-top: 1px solid var(--rule); }
+.s-node input { min-width: 0; } .s-node small { grid-column: 1 / -1; color: var(--ink-3); font-size: 12px; margin-top: -4px; }
+input.sw { appearance: none; width: 42px; height: 24px; border-radius: 12px; background: var(--rule-2); position: relative; cursor: pointer; transition: background .15s; flex: none; margin: 0; }
+input.sw::after { content: ""; position: absolute; top: 3px; left: 3px; width: 18px; height: 18px; border-radius: 50%; background: #fff; transition: left .15s; box-shadow: 0 1px 2px rgba(0,0,0,.25); }
+input.sw:checked { background: var(--accent); } input.sw:checked::after { left: 21px; }
+input.sw:disabled, #setPage :disabled { opacity: .55; cursor: not-allowed; }
 #shareDlg .qr { background: #fff; border-radius: 10px; padding: 14px; margin: 6px auto 12px; width: min(280px, 72vw); }
 #shareDlg .qr svg { display: block; width: 100%; height: auto; }
 #shareDlg .url { font-family: var(--num); font-size: 15px; word-break: break-all; color: var(--ink); margin: 0 0 10px; }
@@ -195,7 +237,7 @@ select.btn, input.btn { cursor: auto; }
 .sum-head .dot { width: 10px; height: 10px; border-radius: 50%; background: var(--ok); flex: none; }
 .sum-head.crit .dot { background: var(--crit); } .sum-head.anomaly .dot { background: var(--warn); }
 .sum-grid { display: grid; grid-template-columns: minmax(0, 5fr) minmax(0, 6fr); gap: 18px 28px; align-items: start; }
-@media (max-width: 1100px) { .sum-grid { grid-template-columns: minmax(0, 1fr); } }
+@container (max-width: 860px) { .sum-grid { grid-template-columns: minmax(0, 1fr); } }
 .sum-grid h3 { font-size: 12.5px; font-weight: 600; color: var(--ink-3); text-transform: uppercase; letter-spacing: .4px; margin: 0 0 8px; }
 .attn { display: grid; gap: 8px; }
 .attn div { display: grid; grid-template-columns: 4px 1fr; gap: 0 10px; font-size: 14px; line-height: 1.45; }
@@ -214,14 +256,14 @@ body:not(.guest) .guest-only { display: none; }
 .sum-details ul { margin: 0; padding-left: 18px; } .sum-details li { font-size: 13.5px; margin: 2px 0; }
 .chart-key { font-size: 12px; color: var(--ink-3); margin-top: 6px; }
 .rain-grid { display: grid; grid-template-columns: 190px minmax(0, 1fr); gap: 14px 24px; align-items: start; }
-@media (max-width: 700px) { .rain-grid { grid-template-columns: minmax(0, 1fr); } }
+@container (max-width: 640px) { .rain-grid { grid-template-columns: minmax(0, 1fr); } .gauge { display: flex; align-items: baseline; gap: 10px; } }
 .gauge { border: 1px solid var(--rule); border-radius: 10px; padding: 10px 14px; background: var(--sunken); margin-bottom: 8px; }
 .gauge b { display: block; font-family: var(--num); font-size: 34px; font-weight: 500; line-height: 1.1; }
 .gauge b.hi { color: var(--info); } .gauge small { color: var(--ink-3); font-size: 12px; }
 .ol-temps { display: grid; gap: 12px; margin-top: 14px; border-top: 1px solid var(--rule); padding-top: 12px; }
 .ol-temps:empty { display: none; }
 .ol-row { display: grid; grid-template-columns: 190px minmax(0, 1fr); gap: 6px 24px; align-items: center; }
-@media (max-width: 700px) { .ol-row { grid-template-columns: minmax(0, 1fr); } }
+@container (max-width: 640px) { .ol-row { grid-template-columns: minmax(0, 1fr); } }
 .ol-row h4 { margin: 0; font-size: 14px; font-weight: 600; } .ol-row h4 small { display: block; color: var(--ink-3); font-weight: 400; font-size: 12px; }
 .ol-row p { margin: 0; font-size: 14px; line-height: 1.5; }
 .ol-row .chip { display: inline-block; font-size: 12.5px; padding: 1px 8px; border-radius: 10px; background: var(--sunken); border: 1px solid var(--rule); margin: 4px 6px 0 0; }
@@ -253,7 +295,7 @@ body:not(.guest) .guest-only { display: none; }
 .catcounts button b { font-family: var(--num); font-size: 16px; color: var(--ink); margin-right: 6px; }
 .catcounts button[aria-pressed="true"] { border-color: var(--accent); background: var(--accent-soft); color: var(--accent); }
 
-.cards { display: grid; gap: 16px; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); }
+.cards { display: grid; gap: 16px; grid-template-columns: repeat(auto-fill, minmax(min(300px, 100%), 1fr)); }
 .node { scroll-margin-top: 16px; }
 .cards > .panel { margin-top: 0; }
 .node.flash { box-shadow: 0 0 0 2px var(--accent); }
@@ -275,14 +317,13 @@ body.guest .admin-only { display: none !important; }
 .meter .trk i { display: block; height: 100%; background: var(--accent); }
 .meter .trk i.hi { background: var(--warn); } .meter .trk i.crit { background: var(--crit); }
 .meter span:last-child { text-align: right; font-family: var(--num); font-size: 14px; }
-.groups { display: grid; gap: 6px 28px; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); }
+.groups { display: grid; gap: 6px 28px; grid-template-columns: repeat(auto-fit, minmax(min(240px, 100%), 1fr)); }
 .groups h3 { font-size: 13.5px; font-weight: 600; margin: 16px 0 2px; color: var(--ink-2); }
 .integ { display: grid; gap: 0; }
 .integ > div { display: grid; grid-template-columns: 1fr auto; gap: 2px 12px; padding: 12px 0; border-bottom: 1px solid var(--rule); }
 .integ > div:last-child { border-bottom: 0; }
 .integ b { font-weight: 600; } .integ p { margin: 0; grid-column: 1 / -1; font-size: 13px; color: var(--ink-3); }
 
-.account { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--ink-3); }
 dialog { border: 1px solid var(--rule-2); border-radius: 12px; padding: 22px; width: min(360px, 92vw); background: var(--panel); color: var(--ink); }
 dialog::backdrop { background: rgba(15, 26, 36, .45); }
 dialog h2 { margin: 0 0 4px; font-size: 17px; }
@@ -294,19 +335,78 @@ dialog .row { display: flex; gap: 8px; justify-content: flex-end; }
          border-radius: 8px; font-size: 13.5px; opacity: 0; pointer-events: none; transition: opacity .2s; z-index: 10; max-width: 90vw; }
 #toast.show { opacity: 1; }
 
-@media (max-width: 820px) {
-  .shell { grid-template-columns: 1fr; }
-  .rail { position: fixed; top: auto; bottom: 0; left: 0; right: 0; height: auto; z-index: 5; flex-direction: row; padding: 6px 4px calc(6px + env(safe-area-inset-bottom));
-          border-right: 0; border-top: 1px solid var(--rule); justify-content: space-around; }
-  .brand, .rail-foot { display: none; }
-  .nav { flex-direction: column; gap: 2px; font-size: 11px; padding: 6px 8px; position: relative; }
-  .nav .count { position: absolute; top: 0; right: 2px; margin: 0; font-size: 10px; min-width: 16px; padding: 0 4px; }
-  main { padding-bottom: 96px; }
-  .verdict { font-size: 18px; }
-  .conn { margin-left: 0; }
-  .ro-t { font-size: 40px; }
-  .meter { grid-template-columns: 96px 1fr; } .meter span:last-child { grid-column: 1 / -1; text-align: left; }
+
+@media (max-width: 1180px) and (min-width: 640px) {
+  .shell { grid-template-columns: 88px minmax(0, 1fr); }
+  .rail { padding: 14px 8px; align-items: stretch; }
+  .brand { justify-content: center; padding: 0 0 14px; } .brand > div { display: none; }
+  .rail .nav { flex-direction: column; gap: 4px; padding: 9px 2px; font-size: 11px; text-align: center; position: relative; line-height: 1.2; }
+  .rail .nav svg { width: 20px; height: 20px; }
+  .rail .nav .count { position: absolute; top: 4px; left: calc(50% + 6px); margin: 0; font-size: 10px; min-width: 16px; padding: 0 4px; }
+  .rail .nav .count.dot { min-width: 8px; padding: 0; }
+  .rail-foot { padding: 10px 0 0; }
+  #acctTxt, .rail-foot .lbl, #verTxt { display: none; }
+  .acct .btn, .foot-btns .btn { padding: 8px 0; }
+  .foot-meta { justify-items: center; }
 }
+@media (max-width: 639px) {
+  .shell { grid-template-columns: minmax(0, 1fr); }
+  .rail { position: fixed; top: auto; bottom: 0; left: 0; right: 0; height: auto; z-index: 5; flex-direction: row; gap: 0;
+          padding: 4px max(4px, env(safe-area-inset-left)) calc(4px + env(safe-area-inset-bottom)) max(4px, env(safe-area-inset-right));
+          border-right: 0; border-top: 1px solid var(--rule); overflow: visible;
+          background: color-mix(in srgb, var(--panel) 92%, transparent); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); }
+  .brand, .rail-foot, .rail .more-item { display: none !important; }
+  .more-btn { display: flex !important; }
+  .rail .nav { flex: 1; flex-direction: column; gap: 3px; padding: 7px 2px 6px; font-size: 11px; text-align: center; min-height: 54px;
+               justify-content: center; position: relative; border-radius: 10px; }
+  .rail .nav svg { width: 22px; height: 22px; }
+  .rail .nav .count { position: absolute; top: 3px; left: calc(50% + 6px); margin: 0; font-size: 10px; min-width: 16px; padding: 0 4px; }
+  .rail .nav .count.dot { min-width: 8px; padding: 0; }
+  .rail .nav.on-more { background: var(--accent-soft); color: var(--accent); }
+  main { padding: calc(14px + env(safe-area-inset-top)) max(12px, env(safe-area-inset-right)) calc(96px + env(safe-area-inset-bottom)) max(12px, env(safe-area-inset-left)); }
+  .topline { margin-bottom: 12px; gap: 6px 12px; }
+  .verdict { font-size: 17px; line-height: 1.35; flex: 1 1 100%; }
+  .conn { margin-left: 0; }
+  .panel { padding: 14px 14px; }
+  .ib-list { margin: 0 -14px; }
+  .ph h2 { font-size: 15.5px; }
+  .readouts { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; margin-bottom: 14px; }
+  .chart { height: 240px; } .chart.mini { height: 150px; }
+  .tbl td, .tbl th { padding-left: 8px; padding-right: 8px; }
+  .meter { grid-template-columns: 90px 1fr; } .meter span:last-child { grid-column: 1 / -1; text-align: left; }
+  dialog { margin: auto 0 0; width: 100vw; max-width: 100vw; max-height: 88dvh; overflow-y: auto; border-radius: 16px 16px 0 0;
+           border-width: 1px 0 0; padding: 18px 18px calc(18px + env(safe-area-inset-bottom)); }
+  dialog[open] { animation: sheet-up .22s ease-out; }
+  #pushDlg, #shareDlg { width: 100vw; }
+}
+@keyframes sheet-up { from { transform: translateY(24px); opacity: .6; } to { transform: none; opacity: 1; } }
+@container (max-width: 230px) {
+  .ro-t { font-size: 34px; } .ro-t small { font-size: 13px; } .ro-h { font-size: 20px; } .ro-h small { font-size: 12px; }
+  .ro-head { flex-wrap: wrap; } .ro-head h3 { font-size: 14px; } .ro-head span { margin-left: 0; flex-basis: 100%; }
+  .ro-head small.id { display: none; } .range .lbl { font-size: 11px; } .ro-foot { gap: 2px 10px; font-size: 11.5px; }
+  .ro-foot span:nth-child(n+3) { display: none; }
+}
+.sheet-grab { width: 40px; height: 4px; border-radius: 2px; background: var(--rule-2); margin: -6px auto 14px; }
+.more-nav { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin-bottom: 14px; }
+.more-nav a { display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 14px 6px; border-radius: 12px; background: var(--sunken);
+              border: 1px solid var(--rule); color: var(--ink); text-decoration: none; font-size: 13px; font-weight: 500; }
+.more-nav a svg { width: 22px; height: 22px; }
+.more-nav a[aria-current="page"] { border-color: var(--accent); color: var(--accent); background: var(--accent-soft); }
+.more-acts { display: grid; gap: 8px; }
+.more-acts .btn { justify-content: flex-start; padding: 11px 14px; font-size: 14.5px; }
+.more-meta { text-align: center; margin: 14px 0 0 !important; font-size: 12.5px; }
+#moreDlg { width: min(420px, 100vw); }
+@media (pointer: coarse) {
+  .btn { min-height: 40px; padding: 8px 14px; font-size: 14px; }
+  .seg button { min-height: 38px; padding: 6px 13px; font-size: 13.5px; }
+  .legend button { min-height: 36px; }
+  .nt { padding-top: 12px; padding-bottom: 12px; }
+  input.sw { width: 48px; height: 28px; } input.sw::after { width: 22px; height: 22px; } input.sw:checked::after { left: 23px; }
+}
+@media (max-height: 520px) and (min-width: 640px) {
+  .rail .nav { padding-top: 6px; padding-bottom: 6px; } .brand { padding-bottom: 6px; }
+}
+@media print { .rail, .topline .conn, .btn, .seg { display: none !important; } .shell { display: block; } .panel { break-inside: avoid; } }
 </style>
 </head>
 <body>
@@ -317,15 +417,21 @@ dialog .row { display: flex; gap: 8px; justify-content: flex-end; }
         <path d="M7 19h4l2-8 3 12 2-7h5" fill="none" stroke="var(--accent-ink)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
       <div><b>IoT Hub</b><small id="siteName">Lab monitor</small></div>
     </div>
-    <a class="nav" href="#overview" data-view="overview"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="3" y="3" width="6" height="6" rx="1.5"/><rect x="11" y="3" width="6" height="6" rx="1.5"/><rect x="3" y="11" width="6" height="6" rx="1.5"/><rect x="11" y="11" width="6" height="6" rx="1.5"/></svg>Overview</a>
-    <a class="nav" href="#nodes" data-view="nodes"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="10" cy="10" r="2.2"/><path d="M5.5 14.5a6.4 6.4 0 0 1 0-9M14.5 5.5a6.4 6.4 0 0 1 0 9"/></svg>Nodes</a>
-    <a class="nav" href="#history" data-view="history"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M3 16h14M4 13l4-4 3 3 5-6"/></svg>History</a>
-    <a class="nav" href="#alerts" data-view="alerts"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M10 3a4.5 4.5 0 0 0-4.5 4.5V11L4 13.5h12L14.5 11V7.5A4.5 4.5 0 0 0 10 3zM8.3 16a1.8 1.8 0 0 0 3.4 0"/></svg>Alerts<span class="count" id="navCount" hidden></span></a>
-    <a class="nav" href="#power" data-view="power"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"><path d="M11.5 2 4.5 11h5l-1 7 7-9h-5l1-7z"/></svg>Interruptions</a>
-    <a class="nav" href="#hub" data-view="hub"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="4" y="4" width="12" height="12" rx="2"/><path d="M8 1.5v2.5M12 1.5v2.5M8 16v2.5M12 16v2.5M1.5 8H4M1.5 12H4M16 8h2.5M16 12h2.5"/></svg>Hub</a>
+    <a class="nav" href="#overview" data-view="overview" title="Overview"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="3" y="3" width="6" height="6" rx="1.5"/><rect x="11" y="3" width="6" height="6" rx="1.5"/><rect x="3" y="11" width="6" height="6" rx="1.5"/><rect x="11" y="11" width="6" height="6" rx="1.5"/></svg><span class="lbl">Overview</span></a>
+    <a class="nav" href="#nodes" data-view="nodes" title="Nodes"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="10" cy="10" r="2.2"/><path d="M5.5 14.5a6.4 6.4 0 0 1 0-9M14.5 5.5a6.4 6.4 0 0 1 0 9"/></svg><span class="lbl">Nodes</span></a>
+    <a class="nav" href="#history" data-view="history" title="History"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M3 16h14M4 13l4-4 3 3 5-6"/></svg><span class="lbl">History</span></a>
+    <a class="nav" href="#alerts" data-view="alerts" title="Activity"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M10 3a4.5 4.5 0 0 0-4.5 4.5V11L4 13.5h12L14.5 11V7.5A4.5 4.5 0 0 0 10 3zM8.3 16a1.8 1.8 0 0 0 3.4 0"/></svg><span class="lbl">Activity</span><b class="count" id="navCount" hidden></b></a>
+    <a class="nav more-item" href="#power" data-view="power" title="Interruptions"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"><path d="M11.5 2 4.5 11h5l-1 7 7-9h-5l1-7z"/></svg><span class="lbl">Interruptions</span></a>
+    <a class="nav more-item" href="#hub" data-view="hub" title="Hub"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="4" y="4" width="12" height="12" rx="2"/><path d="M8 1.5v2.5M12 1.5v2.5M8 16v2.5M12 16v2.5M1.5 8H4M1.5 12H4M16 8h2.5M16 12h2.5"/></svg><span class="lbl">Hub</span></a>
+    <a class="nav more-item" href="#settings" data-view="settings" title="Settings"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="10" cy="10" r="2.6"/><path d="M10 2.5v2M10 15.5v2M2.5 10h2M15.5 10h2M4.7 4.7l1.4 1.4M13.9 13.9l1.4 1.4M4.7 15.3l1.4-1.4M13.9 6.1l1.4-1.4"/></svg><span class="lbl">Settings</span></a>
+    <button class="nav more-btn" type="button" id="moreBtn" title="More" aria-haspopup="dialog"><svg viewBox="0 0 20 20" fill="currentColor"><circle cx="4.5" cy="10" r="1.6"/><circle cx="10" cy="10" r="1.6"/><circle cx="15.5" cy="10" r="1.6"/></svg><span class="lbl">More</span><b class="count dot" id="moreDot" hidden></b></button>
     <div class="rail-foot">
-      <span id="verTxt"></span>
-      <a href="https://github.com/Gautham-Dev007/IoT_Pi32" target="_blank" rel="noopener"><svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true" fill="currentColor"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>Source on GitHub</a>
+      <div class="acct"><span id="acctTxt">Viewing as guest</span>
+        <button class="btn" id="acctBtn" title="Admin sign in"><svg viewBox="0 0 20 20" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><circle cx="10" cy="7" r="3.2"/><path d="M3.8 17c.9-3.2 3.3-4.8 6.2-4.8s5.3 1.6 6.2 4.8"/></svg><span class="lbl">Admin sign in</span></button></div>
+      <div class="foot-btns"><button class="btn" id="shareBtn" title="Show a QR code to open this dashboard"><svg viewBox="0 0 20 20" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><rect x="3" y="3" width="5" height="5" rx="1"/><rect x="12" y="3" width="5" height="5" rx="1"/><rect x="3" y="12" width="5" height="5" rx="1"/><path d="M12 12h2v2h-2zM15 15h2v2h-2zM12 16v1M16 12h1"/></svg><span class="lbl">Share</span></button>
+        <button class="btn" id="installBtn" title="Install as an app" hidden><svg viewBox="0 0 20 20" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="M10 3v9M6.5 8.5 10 12l3.5-3.5M4 15.5h12"/></svg><span class="lbl">Install app</span></button></div>
+      <div class="foot-meta"><span id="verTxt"></span>
+      <a href="https://github.com/Gautham-Dev007/IoT_Pi32" target="_blank" rel="noopener" title="Source on GitHub"><svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true" fill="currentColor"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg><span class="lbl">Source on GitHub</span></a></div>
     </div>
   </nav>
 
@@ -334,21 +440,11 @@ dialog .row { display: flex; gap: 8px; justify-content: flex-end; }
     <div class="topline">
       <h1 class="verdict" id="verdict"><span class="mark"></span><span id="verdictTxt">Connecting to the hub…</span></h1>
       <div class="conn" id="conn" aria-live="polite"><i></i><span id="connTxt">Connecting</span></div>
-      <div class="account"><button class="btn" id="pushBtn" title="Notifications on this device"><svg viewBox="0 0 20 20" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="M5 8a5 5 0 0110 0c0 4 1.5 5.5 1.5 5.5h-13S5 12 5 8zM8.5 16.5a1.6 1.6 0 003 0"/></svg><span>Notify</span></button><button class="btn" id="shareBtn" title="Show a QR code to open this dashboard"><svg viewBox="0 0 20 20" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><rect x="3" y="3" width="5" height="5" rx="1"/><rect x="12" y="3" width="5" height="5" rx="1"/><rect x="3" y="12" width="5" height="5" rx="1"/><path d="M12 12h2v2h-2zM15 15h2v2h-2zM12 16v1M16 12h1"/></svg>Share</button><button class="btn" id="installBtn" hidden>Install app</button><span id="acctTxt">Viewing as guest</span><button class="btn" id="acctBtn">Admin sign in</button></div>
+
     </div>
 
     <section data-section="overview">
       <div class="readouts" id="readouts"><p class="empty">Waiting for the first readings.</p></div>
-      <div class="panel" id="rainPanel" hidden style="margin-bottom:18px">
-        <div class="ph"><h2>Outlook</h2><span class="muted small" id="rainSub"></span></div>
-        <div class="rain-grid">
-          <div class="rain-odds"><div class="gauge"><b id="rainP">–</b><small>chance in the next 2 h</small></div>
-            <div class="small" id="rainVs"></div></div>
-          <div><ul class="rain-why" id="rainWhy"></ul><div id="rainQs"></div></div>
-        </div>
-        <div class="ol-temps" id="olTemps"></div>
-        <details class="sum-details"><summary>How it learns</summary><div class="small" id="rainHow"></div></details>
-      </div>
       <div class="panel" id="sumPanel" style="margin-bottom:18px">
         <div class="ph"><h2 id="sumTitle">Today</h2>
           <div class="seg" id="sumDay" role="group" aria-label="Day"><button data-d="" aria-pressed="true">Today</button><button data-d="yesterday" aria-pressed="false">Yesterday</button></div>
@@ -360,6 +456,16 @@ dialog .row { display: flex; gap: 8px; justify-content: flex-end; }
           <div><h3>Each node</h3><div class="scroll-x"><table class="tbl ns"><thead><tr><th>Node</th><th>Temperature</th><th>Humidity</th><th>Missed</th><th>Restarts</th></tr></thead><tbody id="sumNodes"></tbody></table></div></div>
         </div>
         <details class="sum-details" id="sumDetails"><summary>Details</summary><div id="sumBody"></div></details>
+      </div>
+      <div class="panel" id="rainPanel" hidden style="margin-bottom:18px">
+        <div class="ph"><h2>Outlook</h2><span class="muted small" id="rainSub"></span></div>
+        <div class="rain-grid">
+          <div class="rain-odds"><div class="gauge"><b id="rainP">–</b><small>chance in the next 2 h</small></div>
+            <div class="small" id="rainVs"></div></div>
+          <div><ul class="rain-why" id="rainWhy"></ul><div id="rainQs"></div></div>
+        </div>
+        <div class="ol-temps" id="olTemps"></div>
+        <details class="sum-details"><summary>How it learns</summary><div class="small" id="rainHow"></div></details>
       </div>
       <div class="two">
         <div class="panel">
@@ -430,11 +536,21 @@ dialog .row { display: flex; gap: 8px; justify-content: flex-end; }
     </section>
 
     <section data-section="alerts" hidden>
-      <div class="panel">
-        <div class="ph"><h2>Open problems</h2>
-          <button class="btn admin-only" id="testNotify">Send a test notification</button>
-          <p id="notifyLine"></p></div>
-        <div id="activeAlerts"><p class="empty">No open problems.</p></div>
+      <div class="two act-two">
+        <div class="panel" id="inboxPanel">
+          <div class="ph"><h2>Notifications</h2>
+            <div class="seg" id="inboxFilter" role="group" aria-label="Show"><button data-f="all" aria-pressed="true">All</button><button data-f="sent" aria-pressed="false">Sent to phone</button></div>
+            <button class="btn" id="inboxDevice">Phone notifications</button>
+            <p id="inboxSub"></p></div>
+          <div class="ib-list" id="inboxList"><p class="empty">Loading…</p></div>
+          <div class="pager"><button class="btn" id="inboxMore" hidden>Show older</button></div>
+        </div>
+        <div class="panel" id="probPanel">
+          <div class="ph"><h2>Open problems</h2>
+            <button class="btn admin-only" id="testNotify">Send a test</button>
+            <p id="notifyLine"></p></div>
+          <div id="activeAlerts"><p class="empty">No open problems.</p></div>
+        </div>
       </div>
       <div class="panel">
         <div class="ph"><h2>Event log</h2><a class="btn" id="evCsv" download>Download CSV</a>
@@ -450,6 +566,52 @@ dialog .row { display: flex; gap: 8px; justify-content: flex-end; }
           <thead><tr><th>Time</th><th>Severity</th><th>Category</th><th>Node</th><th>Message</th></tr></thead>
           <tbody id="evRows"></tbody></table></div>
         <div class="pager"><span id="evPos"></span><button class="btn" id="evPrev">Newer</button><button class="btn" id="evNext">Older</button></div>
+      </div>
+    </section>
+
+    <section data-section="settings" hidden id="setPage">
+      <p class="guest-only set-note">You're viewing as a guest. Sign in as admin to change settings.</p>
+      <div class="set-grid">
+        <div class="panel">
+          <div class="ph"><h2>Notifications</h2><p>What reaches your phone. Everything is always kept on the Activity page.</p></div>
+          <div class="set-row"><div><b>This device</b><small id="sDevTxt">Checking…</small></div><button class="btn" id="sDevBtn">Set up</button></div>
+          <label class="set-row"><div><b>ntfy and Telegram</b><small>Automatic: everything until a phone has the app's notifications on, then only critical alerts, so nothing arrives twice.</small></div>
+            <select class="btn" data-s="ntfy_mode"><option value="auto">Automatic</option><option value="all">Everything</option><option value="critical">Critical only</option><option value="off">Off</option></select></label>
+          <div class="set-row"><div><b>Quiet hours</b><small>Anything that isn't critical arrives silently.</small></div>
+            <span class="pair"><input class="btn" type="time" data-s="quiet_start" aria-label="Quiet from"><span>to</span><input class="btn" type="time" data-s="quiet_end" aria-label="Quiet until"></span></div>
+          <label class="set-row"><div><b>At most</b><small>Non-critical notifications an hour. The rest wait on the Activity page.</small></div>
+            <span class="pair"><input class="btn num" type="number" min="1" max="60" data-s="max_per_hour"><span>an hour</span></span></label>
+          <label class="set-row"><div><b>Offline alerts after</b><small>A node has to be gone this long before your phone hears about it. Shorter blips are only listed on the Activity page.</small></div>
+            <span class="pair"><input class="btn num" type="number" min="2" max="120" data-s="offline_push_min"><span>min</span></span></label>
+          <label class="set-row"><div><b>"Back to normal"</b><small>When a problem clears.</small></div>
+            <select class="btn" data-s="recovery"><option value="pushed">Only if I was told about it</option><option value="always">Always</option><option value="never">Never</option></select></label>
+          <p class="set-foot">Something that keeps going wrong and right again is sent once as "again and again", then kept quiet for two hours.</p>
+        </div>
+        <div class="panel">
+          <div class="ph"><h2>Daily summary</h2><p>The day in plain words, on the dashboard any time.</p></div>
+          <label class="set-row"><div><b>Send it every evening</b><small>As a notification.</small></div><input class="sw" type="checkbox" data-s="summary_push"></label>
+          <label class="set-row"><div><b>At</b><small>Leave empty to never send it.</small></div><input class="btn" type="time" data-s="summary_time"></label>
+          <div class="ph" style="margin-top:22px"><h2>Weather and rain</h2><p id="sPlace"></p></div>
+          <label class="set-row"><div><b>Rain alerts</b><small>Raining now, or likely in the next two hours.</small></div><input class="sw" type="checkbox" data-s="rain_alerts"></label>
+          <label class="set-row"><div><b>"Did it rain?" questions</b><small>At most three a day. Your answers train the rain predictor.</small></div><input class="sw" type="checkbox" data-s="rain_questions"></label>
+          <label class="set-row"><div><b>Tips</b><small>Dew tonight, damp air, heat, opening a window.</small></div><input class="sw" type="checkbox" data-s="tips"></label>
+        </div>
+        <div class="panel">
+          <div class="ph"><h2>Alert limits</h2><p>Warn when any node goes past these. Leave a box empty for no limit.</p></div>
+          <div class="lim-grid">
+            <label><span>Temperature above</span><span class="pair"><input class="btn num" type="number" step="0.5" data-s="temp_high"><span>°C</span></span></label>
+            <label><span>Temperature below</span><span class="pair"><input class="btn num" type="number" step="0.5" data-s="temp_low"><span>°C</span></span></label>
+            <label><span>Humidity above</span><span class="pair"><input class="btn num" type="number" step="1" data-s="hum_high"><span>%</span></span></label>
+            <label><span>Humidity below</span><span class="pair"><input class="btn num" type="number" step="1" data-s="hum_low"><span>%</span></span></label>
+          </div>
+          <div class="ph" style="margin-top:22px"><h2>Nodes</h2><p>A friendly name and whether it's indoors or outdoors. The ID and its history stay the same.</p></div>
+          <div id="sNodes"></div>
+        </div>
+        <div class="panel">
+          <div class="ph"><h2>About</h2></div>
+          <dl class="kv" id="sAbout"></dl>
+          <p class="set-foot">Weather place, email, Google Home, ntfy and the network are set up with the scripts on the Pi; see the <a href="https://github.com/Gautham-Dev007/IoT_Pi32/blob/main/docs/REFERENCE.md" target="_blank" rel="noopener">reference</a>.</p>
+        </div>
       </div>
     </section>
 
@@ -528,6 +690,20 @@ dialog .row { display: flex; gap: 8px; justify-content: flex-end; }
     <div class="row"><button type="button" class="btn" id="loginCancel">Cancel</button><button type="submit" class="btn primary" id="loginGo">Sign in</button></div>
   </form>
 </dialog>
+<dialog id="moreDlg" class="sheet" aria-label="More">
+  <div class="sheet-grab" aria-hidden="true"></div>
+  <nav class="more-nav">
+    <a href="#power" data-view="power"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"><path d="M11.5 2 4.5 11h5l-1 7 7-9h-5l1-7z"/></svg><span>Interruptions</span></a>
+    <a href="#hub" data-view="hub"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="4" y="4" width="12" height="12" rx="2"/><path d="M8 1.5v2.5M12 1.5v2.5M8 16v2.5M12 16v2.5M1.5 8H4M1.5 12H4M16 8h2.5M16 12h2.5"/></svg><span>Hub</span></a>
+    <a href="#settings" data-view="settings"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="10" cy="10" r="2.6"/><path d="M10 2.5v2M10 15.5v2M2.5 10h2M15.5 10h2M4.7 4.7l1.4 1.4M13.9 13.9l1.4 1.4M4.7 15.3l1.4-1.4M13.9 6.1l1.4-1.4"/></svg><span>Settings</span></a>
+  </nav>
+  <div class="more-acts">
+    <button type="button" class="btn" data-do="share"><svg viewBox="0 0 20 20" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><rect x="3" y="3" width="5" height="5" rx="1"/><rect x="12" y="3" width="5" height="5" rx="1"/><rect x="3" y="12" width="5" height="5" rx="1"/><path d="M12 12h2v2h-2zM15 15h2v2h-2zM12 16v1M16 12h1"/></svg>Share</button>
+    <button type="button" class="btn" data-do="install" hidden><svg viewBox="0 0 20 20" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="M10 3v9M6.5 8.5 10 12l3.5-3.5M4 15.5h12"/></svg>Install app</button>
+    <button type="button" class="btn" data-do="acct"><svg viewBox="0 0 20 20" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><circle cx="10" cy="7" r="3.2"/><path d="M3.8 17c.9-3.2 3.3-4.8 6.2-4.8s5.3 1.6 6.2 4.8"/></svg><span id="moreAcct">Admin sign in</span></button>
+  </div>
+  <p class="more-meta"><span id="moreVer"></span> · <a href="https://github.com/Gautham-Dev007/IoT_Pi32" target="_blank" rel="noopener">Source on GitHub</a></p>
+</dialog>
 <dialog id="pushDlg" aria-labelledby="pushTitle">
   <h2 id="pushTitle">Notifications</h2>
   <p id="pushNote" class="muted"></p>
@@ -541,6 +717,7 @@ dialog .row { display: flex; gap: 8px; justify-content: flex-end; }
   </fieldset>
   <div class="row"><button type="button" class="btn" id="pushTest" disabled>Send a test</button><button type="button" class="btn primary" id="pushClose">Done</button></div>
   <p class="small muted" id="pushDevices"></p>
+  <p class="small muted" id="pushNtfy"></p>
 </dialog>
 <dialog id="shareDlg" aria-labelledby="shareTitle">
   <h2 id="shareTitle">Open this dashboard</h2>
@@ -614,7 +791,9 @@ let role = 'guest', pwSet = true;
 function applyRole(r) {
   role = r; document.body.classList.toggle('guest', r !== 'admin');
   $('#acctTxt').textContent = r === 'admin' ? (pwSet ? 'Signed in as admin' : 'Admin (no password set)') : 'Viewing as guest';
-  $('#acctBtn').textContent = r === 'admin' ? 'Sign out' : 'Admin sign in';
+  const al = r === 'admin' ? 'Sign out' : 'Admin sign in';
+  $('#acctBtn .lbl').textContent = al; $('#acctBtn').title = al; $('#moreAcct').textContent = al;
+  $('#moreDlg [data-do="acct"]').hidden = r === 'admin' && !pwSet;
   $('#acctBtn').hidden = r === 'admin' && !pwSet;
 }
 function openLogin() { $('#loginErr').textContent = ''; $('#loginPw').value = ''; $('#loginDlg').showModal(); $('#loginPw').focus(); }
@@ -650,7 +829,7 @@ function nodeState(n) {
   return 'online';
 }
 
-const VIEWS = ['overview', 'nodes', 'history', 'alerts', 'power', 'hub'];
+const VIEWS = ['overview', 'nodes', 'history', 'alerts', 'power', 'hub', 'settings'];
 let view = 'overview';
 function route() {
   const [v, arg] = (location.hash.slice(1) || 'overview').split('/');
@@ -661,6 +840,12 @@ function route() {
   if (view === 'alerts') events.load();
   if (view === 'hub') loadHub();
   if (view === 'power') intr.load();
+  if (view === 'settings') setv.load();
+  if ($('#moreDlg').open) $('#moreDlg').close();
+  $$('.more-nav a').forEach(a => { if (a.dataset.view === view) a.setAttribute('aria-current', 'page'); else a.removeAttribute('aria-current'); });
+  $('#moreBtn').classList.toggle('on-more', ['power', 'hub', 'settings'].includes(view));
+  if (view === 'alerts') inbox.load(true);
+  guard('nav', renderNavCount);
   if (view === 'overview') { ov.load(); loadRecent(); sum.load(); }
   if (view === 'nodes') { renderNodes(); if (arg) focusNode(decodeURIComponent(arg)); }
   requestAnimationFrame(redrawCharts);
@@ -719,8 +904,12 @@ function renderVerdict() {
 }
 function renderNavCount() {
   const open = S.alerts.filter(a => !a.ack), c = $('#navCount');
-  c.hidden = !open.length; c.textContent = open.length;
-  c.classList.toggle('warn', !open.some(a => a.level === 'crit'));
+  const unread = role === 'admin' && view !== 'alerts' ? (S.d?.inbox_unread || 0) : 0;
+  const n = open.length || unread;
+  c.hidden = !n; c.textContent = n > 99 ? '99+' : n;
+  c.classList.toggle('warn', !!open.length && !open.some(a => a.level === 'crit'));
+  c.classList.toggle('unread', !open.length && !!unread);
+  c.title = open.length ? `${open.length} open problem${open.length === 1 ? '' : 's'}` : unread ? `${unread} unread notification${unread === 1 ? '' : 's'}` : '';
 }
 
 function rangeBar(n, metric, unit) {
@@ -1573,7 +1762,9 @@ const push = {
     $('#pushPrefs').disabled = !on; $('#pushTest').disabled = !on;
     const n = Array.isArray(i?.devices) ? i.devices.length : (i?.devices || 0);
     $('#pushDevices').textContent = n ? `${n} device${n === 1 ? '' : 's'} get${n === 1 ? 's' : ''} notifications from this hub.` : '';
-    $('#pushBtn').classList.toggle('on', on);
+    const nm = S.d?.notify?.channels?.length ? (setv.d?.settings?.ntfy_mode || 'auto') : null;
+    $('#pushNtfy').textContent = !nm ? '' : nm === 'off' ? 'ntfy/Telegram is off.' : nm === 'all' ? 'ntfy/Telegram also gets everything (change in Settings).'
+      : nm === 'critical' || n ? 'ntfy/Telegram only sends critical alerts, so nothing arrives twice.' : 'ntfy/Telegram sends everything until a device has app notifications on.';
   },
   prefs() { return Object.fromEntries($$('#pushPrefs input').map(c => [c.dataset.p, c.checked])); },
   label() {
@@ -1581,6 +1772,7 @@ const push = {
     return (/Android/.test(ua) ? 'Android' : isIOS ? 'iPhone or iPad' : /Mac/.test(ua) ? 'Mac' : /Windows/.test(ua) ? 'Windows' : /Linux/.test(ua) ? 'Linux' : 'Device') + (standalone ? ' app' : ' browser');
   },
   async toggle() {
+    setv.d = null;
     $('#pushToggle').disabled = true;
     try {
       if (this.sub) {
@@ -1606,7 +1798,7 @@ const push = {
     catch (e) { toast(e.message); }
   },
 };
-$('#pushBtn').onclick = () => push.open();
+$('#inboxDevice').onclick = () => push.open();
 $('#pushToggle').onclick = () => push.toggle();
 $('#pushClose').onclick = () => $('#pushDlg').close();
 $('#pushDlg').addEventListener('click', e => { if (e.target === $('#pushDlg')) $('#pushDlg').close(); });
@@ -1615,11 +1807,105 @@ $('#pushTest').onclick = async () => {
   try { await api('/api/push/test', { method: 'POST', body: { endpoint: push.sub.endpoint } }); toast('Test sent'); } catch (e) { toast(e.message); }
 };
 if (push.supported()) {
-  navigator.serviceWorker.ready.then(r => r.pushManager.getSubscription()).then(s => $('#pushBtn').classList.toggle('on', !!s)).catch(() => {});
   navigator.serviceWorker.addEventListener('message', e => {
     if (e.data?.type === 'open') { const u = new URL(e.data.url); if (u.hash) location.hash = u.hash; }
   });
 }
+const CAT_LABEL = { problems: 'Problem', rain: 'Rain', tips: 'Tip', summary: 'Summary', system: 'Hub' };
+const WHY = { 'fixed itself quickly': 'fixed itself before you were told', flapping: 'kept quiet: keeps changing',
+  'already told you': 'kept quiet: you already knew', 'hourly limit': 'kept quiet: hourly limit', 'inbox only': 'not sent to phone',
+  "problem wasn't pushed": 'kept quiet', recovery: 'kept quiet', waiting: 'waiting a few minutes before telling you', 'flapping notice': '' };
+const inbox = {
+  items: [], filter: 'all', unread: 0, more: false,
+  async load(markRead) {
+    try {
+      const d = await api('/api/inbox?limit=60');
+      Object.assign(this, { items: d.items, unread: d.unread, today: d.today, quiet: d.quiet_now, more: d.items.length >= 60 });
+    } catch (e) { $('#inboxList').innerHTML = `<p class="empty" style="padding:18px 20px">${esc(e.message)}</p>`; return; }
+    guard('inbox', () => this.render());
+    if (markRead && role === 'admin' && this.unread) {
+      api('/api/inbox/read', { method: 'POST', body: {} }).then(() => { if (S.d) S.d.inbox_unread = 0; renderNavCount(); }).catch(() => {});
+    }
+  },
+  async older() {
+    const last = this.items[this.items.length - 1]; if (!last) return;
+    try { const d = await api(`/api/inbox?limit=60&before=${last.ts}`); this.items = this.items.concat(d.items); this.more = d.items.length >= 60; }
+    catch (e) { toast(e.message); return; }
+    this.render();
+  },
+  render() {
+    const t = this.today || {};
+    $('#inboxSub').textContent = `Last 24 hours: ${t.pushed || 0} sent to your phone, ${(t.total || 0) - (t.pushed || 0)} kept here.` + (this.quiet ? ' Quiet hours now.' : '');
+    $('#inboxMore').hidden = !this.more;
+    const list = this.items.filter(n => this.filter === 'all' || n.pushed);
+    if (!list.length) { $('#inboxList').innerHTML = `<p class="empty" style="padding:18px 20px">${this.filter === 'sent' ? 'Nothing sent to your phone yet.' : 'No notifications yet. Problems, rain and the daily summary show up here.'}</p>`; return; }
+    const dayName = ts => { const d = new Date(ts * 1000), t0 = new Date(); t0.setHours(0, 0, 0, 0);
+      return d >= t0 ? 'Today' : d >= new Date(t0 - 864e5) ? 'Yesterday' : d.toLocaleDateString([], { weekday: 'long', day: 'numeric', month: 'short' }); };
+    let last = '', html = '';
+    for (const n of list) {
+      const dn = dayName(n.ts);
+      if (dn !== last) { html += `<div class="ib-day">${esc(dn)}</div>`; last = dn; }
+      const lv = n.cat === 'rain' ? 'rain' : n.level, label = n.level === 'ok' ? 'Resolved' : CAT_LABEL[n.cat] || 'Hub';
+      const why = n.pushed ? '<span class="sent">sent to phone</span>' : esc(WHY[n.why] ?? n.why ?? '');
+      html += `<a class="nt ${esc(lv)}${n.pushed ? '' : ' quiet'}${!n.read && (n.pushed || n.level === 'crit') ? ' unread' : ''}" href="${esc(n.url || '#overview')}"><i></i><span>
+        <b>${esc(n.title)}</b><p>${esc(n.body)}</p><small>${esc(hm(n.ts))} · ${esc(label)}${why ? ' · ' + why : ''}</small></span></a>`;
+    }
+    $('#inboxList').innerHTML = html;
+  },
+};
+$('#inboxMore').onclick = () => inbox.older();
+segment($('#inboxFilter'), 'f', f => { inbox.filter = f; inbox.render(); });
+const MORE_DO = { share: '#shareBtn', install: '#installBtn', acct: '#acctBtn' };
+$('#moreBtn').onclick = () => { $('#moreVer').textContent = $('#verTxt').textContent || 'IoT Hub'; $('#moreDlg').showModal(); };
+$('#moreDlg').addEventListener('click', e => { if (e.target === $('#moreDlg') || e.target.closest('.more-nav a')) $('#moreDlg').close(); });
+$$('#moreDlg [data-do]').forEach(b => b.onclick = () => { $('#moreDlg').close(); $(MORE_DO[b.dataset.do]).click(); });
+new MutationObserver(() => { $('#moreDlg [data-do="install"]').hidden = $('#installBtn').hidden; }).observe($('#installBtn'), { attributes: true, attributeFilter: ['hidden'] });
+const setv = {
+  d: null,
+  async load() {
+    try { this.d = await api('/api/settings'); } catch (e) { toast(e.message); return; }
+    guard('settings', () => this.render());
+    let sub = null;
+    if (push.supported()) { try { sub = await (await navigator.serviceWorker.ready).pushManager.getSubscription(); } catch {  } }
+    const n = this.d.devices;
+    $('#sDevTxt').textContent = !window.isSecureContext ? 'Open the https link to get notifications on this device.'
+      : !push.supported() ? (isIOS && !standalone ? 'On iPhone, add the dashboard to the Home Screen first.' : "This browser can't receive notifications.")
+      : (sub ? 'Getting notifications.' : 'Not getting notifications.') + (n ? ` ${n} device${n === 1 ? '' : 's'} in total.` : '');
+    $('#sDevBtn').textContent = sub ? 'Choose what it gets' : 'Turn on';
+  },
+  render() {
+    const s = this.d.settings, admin = role === 'admin';
+    $$('#setPage [data-s]').forEach(el => {
+      const v = s[el.dataset.s];
+      if (el.type === 'checkbox') el.checked = !!v; else el.value = v ?? '';
+      el.disabled = !admin;
+    });
+    const w = this.d.weather;
+    $('#sPlace').textContent = w.enabled ? `Weather for ${w.place || 'your location'}. Change the place with setup-weather.sh on the Pi.` : 'Weather is off. Run setup-weather.sh on the Pi to turn it on.';
+    $('#sNodes').innerHTML = espNodes().map(n => `<div class="s-node" data-id="${esc(n.id)}">
+        <input class="btn" maxlength="24" placeholder="${esc(n.id)}" value="${esc(n.named ? n.label : '')}" aria-label="Name for ${esc(n.id)}" ${admin ? '' : 'disabled'}>
+        <select class="btn" aria-label="Where" ${admin ? '' : 'disabled'}><option value="indoor">Indoor</option><option value="outdoor"${n.place === 'outdoor' ? ' selected' : ''}>Outdoor</option></select>
+        <button class="btn" ${admin ? '' : 'disabled'}>Save</button><small>${esc(n.id)}${n.info?.fw ? ` · firmware ${esc(n.info.fw)}` : ''}</small></div>`).join('')
+      || '<p class="empty">No nodes yet.</p>';
+    $$('#sNodes .s-node').forEach(row => $('button', row).onclick = async () => {
+      if (await act(`/api/nodes/${encodeURIComponent(row.dataset.id)}/profile`, { name: $('input', row).value.trim(), place: $('select', row).value }, 'Saved. Google Home picks it up after "sync my devices".')) refreshOnce();
+    });
+    const c = S.cfg || {};
+    $('#sAbout').innerHTML = [['Hub software', esc(this.d.version)], ['Time zone', esc(c.timezone || '')],
+      ['Public link', c.public_url ? `<a href="${esc(c.public_url)}" target="_blank" rel="noopener">${esc(c.public_url.replace(/^https:\/\//, ''))}</a>` : 'not set (Tailscale Funnel)'],
+      ['ntfy / Telegram', esc((this.d.ntfy || []).join(', ') || 'not set up')],
+      ['Source', '<a href="https://github.com/Gautham-Dev007/IoT_Pi32" target="_blank" rel="noopener">Gautham-Dev007/IoT_Pi32</a>']]
+      .map(([k, v]) => `<dt>${k}</dt><dd>${v}</dd>`).join('');
+  },
+  async save(el) {
+    const k = el.dataset.s;
+    const v = el.type === 'checkbox' ? el.checked : el.type === 'number' ? (el.value === '' ? null : +el.value) : el.value;
+    try { const r = await api('/api/settings', { method: 'POST', body: { [k]: v } }); this.d.settings = r.settings; toast('Saved'); }
+    catch (e) { toast(e.message); if (/Sign in as admin/.test(e.message)) openLogin(); this.render(); }
+  },
+};
+$$('#setPage [data-s]').forEach(el => el.addEventListener('change', () => setv.save(el)));
+$('#sDevBtn').onclick = () => push.open();
 let installEvt = null;
 const standalone = matchMedia('(display-mode: standalone)').matches || navigator.standalone;
 const isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);

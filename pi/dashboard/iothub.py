@@ -42,7 +42,7 @@ DATA_DIR = os.path.join(HOME, "iothub-data")
 DB_PATH = os.path.join(DATA_DIR, "readings.db")
 STATIC = os.path.join(os.path.dirname(os.path.abspath(__file__)), "static")
 
-HUB_VERSION = "2.16"
+HUB_VERSION = "2.18"
 PI_ID = "pi"
 PI_EVERY_S = 10
 ID_RE = re.compile(r"^[a-z0-9_-]{1,24}$")
@@ -132,6 +132,101 @@ with db_lock:
                           "hum_low": "environment", "ota": "firmware", "backlog": "data"}.items():
             db.execute("UPDATE events SET category = ? WHERE kind = ?", (cat, kind))
     db.commit()
+
+def _cfg_bool(k, default=True):
+    v = cfg.get(k)
+    return default if v in (None, "") else v.lower() in ("1", "yes", "true", "on")
+
+
+def _cfg_num(k):
+    try:
+        return float(cfg[k]) if cfg.get(k, "") != "" else None
+    except ValueError:
+        return None
+
+
+SETTINGS = {
+    "ntfy_mode": (str, cfg.get("NTFY_MODE", "auto")),
+    "quiet_start": (str, cfg.get("QUIET_START", "22:00")),
+    "quiet_end": (str, cfg.get("QUIET_END", "07:00")),
+    "max_per_hour": (int, int(_cfg_num("MAX_PUSH_PER_HOUR") or 4)),
+    "offline_push_min": (int, int(_cfg_num("OFFLINE_PUSH_MIN") or 5)),
+    "recovery": (str, cfg.get("RECOVERY_PUSH", "pushed")),
+    "summary_time": (str, cfg.get("SUMMARY_TIME", "21:00")),
+    "summary_push": (bool, _cfg_bool("SUMMARY_PUSH")),
+    "rain_alerts": (bool, _cfg_bool("RAIN_ALERTS")),
+    "rain_questions": (bool, _cfg_bool("RAIN_QUESTIONS")),
+    "tips": (bool, _cfg_bool("TIP_ALERTS")),
+    "temp_high": (float, _cfg_num("TEMP_HIGH")), "temp_low": (float, _cfg_num("TEMP_LOW")),
+    "hum_high": (float, _cfg_num("HUM_HIGH")), "hum_low": (float, _cfg_num("HUM_LOW")),
+}
+TIME_RE = re.compile(r"^([01]\d|2[0-3]):[0-5]\d$")
+with db_lock:
+    db.execute("CREATE TABLE IF NOT EXISTS settings (k TEXT PRIMARY KEY, v TEXT)")
+    db.commit()
+    _settings = {k: json.loads(v) for k, v in db.execute("SELECT k, v FROM settings") if k in SETTINGS}
+
+
+def setting(k):
+    return _settings[k] if k in _settings else SETTINGS[k][1]
+
+
+def all_settings():
+    return {k: setting(k) for k in SETTINGS}
+
+
+def save_settings(changes):
+    clean = {}
+    for k, v in changes.items():
+        if k not in SETTINGS:
+            return f"unknown setting {k}"
+        typ = SETTINGS[k][0]
+        try:
+            if v is None or v == "":
+                if typ is float:
+                    clean[k] = None
+                    continue
+                if k == "summary_time":
+                    clean[k] = ""
+                    continue
+                return f"{k} needs a value"
+            if typ is bool:
+                v = bool(v)
+            elif typ is int:
+                v = int(v)
+            elif typ is float:
+                v = round(float(v), 1)
+            else:
+                v = str(v).strip()
+        except (TypeError, ValueError):
+            return f"{k}: not a valid value"
+        if k in ("quiet_start", "quiet_end", "summary_time") and v and not TIME_RE.match(v):
+            return "times look like 21:00"
+        if k == "ntfy_mode" and v not in ("auto", "all", "critical", "off"):
+            return "ntfy_mode: auto, all, critical or off"
+        if k == "recovery" and v not in ("pushed", "always", "never"):
+            return "recovery: pushed, always or never"
+        if k == "max_per_hour" and not 1 <= v <= 60:
+            return "max pushes per hour: 1 to 60"
+        if k == "offline_push_min" and not 2 <= v <= 120:
+            return "offline delay: 2 to 120 minutes"
+        if k.startswith(("temp_", "hum_")) and v is not None and not (-40 <= v <= 125):
+            return f"{k}: out of range"
+        clean[k] = v
+    with db_lock:
+        for k, v in clean.items():
+            db.execute("INSERT OR REPLACE INTO settings VALUES (?, ?)", (k, json.dumps(v)))
+        db.commit()
+    _settings.update(clean)
+    _apply_settings()
+    return None
+
+
+def _apply_settings():
+    if "LIMITS" in globals():
+        for k in ("temp_high", "temp_low", "hum_high", "hum_low"):
+            LIMITS[k] = setting(k)
+
 
 METRICS = {"temp": (-55, 125), "hum": (0, 100)}
 INSERT = "INSERT INTO readings (ts, node, value, metric) VALUES (?,?,?,?)"
@@ -774,8 +869,8 @@ def _limit(key):
         return None
 
 
-LIMITS = {"temp_high": _limit("TEMP_HIGH"), "temp_low": _limit("TEMP_LOW"),
-          "hum_high": _limit("HUM_HIGH"), "hum_low": _limit("HUM_LOW")}
+LIMITS = {"temp_high": setting("temp_high"), "temp_low": setting("temp_low"),
+          "hum_high": setting("hum_high"), "hum_low": setting("hum_low")}
 PI_TEMP_HIGH = _limit("PI_TEMP_HIGH") or 75.0
 DISK_FULL_PCT = _limit("DISK_FULL_PCT") or 90.0
 OFFLINE_AFTER = int((_limit("OFFLINE_AFTER_MIN") or 2) * 60)
@@ -835,22 +930,181 @@ def notify_loop():
                 delay = min(delay * 2, 300)
 
 
-def notify(title, body, level="warn", category="", actions=None, push=None):
+COOLDOWN = {"problems": 30 * 60, "rain": 3 * 3600, "tips": 12 * 3600, "summary": 18 * 3600, "system": 6 * 3600}
+with db_lock:
+    db.execute("CREATE TABLE IF NOT EXISTS notifications (id INTEGER PRIMARY KEY, ts REAL, title TEXT, body TEXT, "
+               "level TEXT, cat TEXT, key TEXT, url TEXT, pushed INTEGER, why TEXT, read INTEGER DEFAULT 0)")
+    db.execute("CREATE INDEX IF NOT EXISTS idx_notif ON notifications(key, ts)")
+    db.commit()
+gate_lock = threading.Lock()
+_held = {}
+
+
+def _hm_to_min(s):
+    h, m = s.split(":")
+    return int(h) * 60 + int(m)
+
+
+def quiet_now(t=None):
     try:
-        webpush(title, body, level, category, **(push or {}))
+        a, b = _hm_to_min(setting("quiet_start")), _hm_to_min(setting("quiet_end"))
+    except (ValueError, AttributeError):
+        return False
+    lt = time.localtime(t or time.time())
+    m = lt.tm_hour * 60 + lt.tm_min
+    return a != b and ((a <= m < b) if a < b else (m >= a or m < b))
+
+
+def _ntfy_wants(level):
+    mode = setting("ntfy_mode")
+    if mode == "auto":
+        mode = "critical" if _push_devices() else "all"
+    return mode == "all" or (mode == "critical" and level == "crit")
+
+
+def _cat_of(level, category, push):
+    if push.get("cat"):
+        return push["cat"]
+    if category == "summary":
+        return "summary"
+    if category == "insight":
+        return "tips"
+    if level in ("crit", "warn", "ok"):
+        return "problems"
+    return "system"
+
+
+def _decide(now, key, level, cat, hold):
+    with db_lock:
+        recent = db.execute("SELECT ts, level, pushed FROM notifications WHERE key = ? AND ts > ? ORDER BY ts DESC",
+                            (key, now - 3 * 3600)).fetchall()
+        hour_pushes = db.execute("SELECT COUNT(*) FROM notifications WHERE pushed = 1 AND level != 'crit' AND ts > ?",
+                                 (now - 3600,)).fetchone()[0]
+        flap_note = db.execute("SELECT COUNT(*) FROM notifications WHERE key = ? AND why = 'flapping notice' AND ts > ?",
+                               (key, now - 2 * 3600)).fetchone()[0]
+    if cat == "system" and level not in ("crit",):
+        return False, "inbox only"
+    starts = sum(1 for ts, lv, _p in recent if ts > now - 3600 and lv in ("crit", "warn")) + (level in ("crit", "warn"))
+    if cat == "problems" and (starts >= 3 or flap_note):
+        return False, "flapping"
+    if level == "ok":
+        mode = setting("recovery")
+        if mode == "never":
+            return False, "recovery"
+        prev = next(((lv, p) for _t, lv, p in recent if lv in ("crit", "warn")), None)
+        if mode == "pushed" and not (prev and prev[1]):
+            return False, "problem wasn't pushed"
+        return True, ""
+    same = next((p for ts, lv, p in recent if lv == level and p and now - ts < COOLDOWN.get(cat, 3600)), None)
+    if same:
+        return False, "already told you"
+    if level != "crit" and hour_pushes >= setting("max_per_hour"):
+        return False, "hourly limit"
+    if hold:
+        return None, "waiting"
+    return True, ""
+
+
+def notify(title, body, level="warn", category="", actions=None, push=None, key=None, hold=0):
+    push = dict(push or {})
+    now = time.time()
+    cat = _cat_of(level, category, push)
+    key = key or push.get("tag") or title
+    with gate_lock:
+        if level == "ok" and key in _held:
+            _, nid_, _a = _held.pop(key)
+            with db_lock:
+                db.execute("UPDATE notifications SET why = 'fixed itself quickly' WHERE id = ?", (nid_,))
+                db.commit()
+            ok, why = False, "fixed itself quickly"
+        else:
+            ok, why = _decide(now, key, level, cat, hold)
+        if cat == "problems" and why == "flapping":
+            with db_lock:
+                noted = db.execute("SELECT 1 FROM notifications WHERE key = ? AND why = 'flapping notice' AND ts > ?",
+                                   (key, now - 2 * 3600)).fetchone()
+            if not noted:
+                with db_lock:
+                    row = db.execute("SELECT title FROM notifications WHERE key = ? AND level IN ('crit', 'warn') "
+                                     "ORDER BY id DESC LIMIT 1", (key,)).fetchone()
+                what = row[0] if row and level == "ok" else title
+                _record_and_send(now, f"{what}, again and again", f"This has happened {_starts(key, now) + (level != 'ok')} "
+                                 f"times in the last hour, so I'll stop notifying you about it for two hours. "
+                                 f"The dashboard keeps showing it.", "warn", cat, key, push.get("url") or "/#alerts", True,
+                                 "flapping notice", None, push)
+        nid_ = _record_and_send(now, title, body, level, cat, key, push.get("url") or "/", ok is True, why,
+                                actions, push)
+        if ok is None:
+            _held[key] = (now + hold, nid_, (title, body, level, cat, key, push.get("url") or "/", actions, push))
+
+
+def _starts(key, now):
+    with db_lock:
+        return db.execute("SELECT COUNT(*) FROM notifications WHERE key = ? AND ts > ? AND level IN ('crit', 'warn') "
+                          "AND why != 'flapping notice'", (key, now - 3600)).fetchone()[0]
+
+
+def _record_and_send(now, title, body, level, cat, key, url, do_push, why, actions, push):
+    with db_lock:
+        cur = db.execute("INSERT INTO notifications (ts, title, body, level, cat, key, url, pushed, why) VALUES (?,?,?,?,?,?,?,?,?)",
+                         (now, title, body, level, cat, key, url, int(bool(do_push)), why or ""))
+        db.execute("DELETE FROM notifications WHERE ts < ?", (now - 60 * 86400,))
+        db.commit()
+    if do_push:
+        _dispatch(title, body, level, cat, key, url, actions, push)
+    return cur.lastrowid
+
+
+def _dispatch(title, body, level, cat, key, url, actions, push):
+    try:
+        webpush(title, body, level, "", cat=cat, tag=push.get("tag") or key, url=url,
+                actions=push.get("actions"), answer=push.get("answer"))
     except Exception as e:
         log.warning("web push not queued: %s", e)
-    if not notify_state["channels"]:
+    if not notify_state["channels"] or not _ntfy_wants(level):
         return
+    quiet = quiet_now() and level != "crit"
     head = f"[{LEVEL_NAME.get(level, level.upper())}] {title}"
-    tail = f"\n\n{category.capitalize()} - {fmt_time(time.time())}" if category else ""
     try:
-        notify_q.put_nowait((head, body + tail, level, actions))
+        notify_q.put_nowait((head, f"{body}\n\n{fmt_time(time.time())}", "info" if quiet else level, actions))
     except queue.Full:
         log.warning("notification queue full, dropped: %s", title)
 
 
-def log_event(nid, kind, level, msg, push=False, title=None):
+def gate_loop():
+    while True:
+        time.sleep(10)
+        now = time.time()
+        due = []
+        with gate_lock:
+            for key, (at, nid_, args) in list(_held.items()):
+                if now >= at:
+                    _held.pop(key)
+                    due.append((key, nid_, args))
+        for key, nid_, args in due:
+            with alerts_lock:
+                still = key in active_alerts
+            if not still:
+                continue
+            with db_lock:
+                db.execute("UPDATE notifications SET pushed = 1, why = '' WHERE id = ?", (nid_,))
+                db.commit()
+            title, body, level, cat, key_, url, actions, push = args
+            _dispatch(title, body, level, cat, key_, url, actions, push)
+
+
+def _inbox_unread():
+    with db_lock:
+        return db.execute("SELECT COUNT(*) FROM notifications WHERE read = 0 AND (pushed = 1 OR level = 'crit')").fetchone()[0]
+
+
+def recently_pushed(key, seconds):
+    with db_lock:
+        return db.execute("SELECT 1 FROM notifications WHERE key = ? AND pushed = 1 AND ts > ?",
+                          (key, time.time() - seconds)).fetchone() is not None
+
+
+def log_event(nid, kind, level, msg, push=False, title=None, key=None, hold=0):
     now = time.time()
     category = CATEGORIES.get(kind, "system")
     try:
@@ -862,7 +1116,7 @@ def log_event(nid, kind, level, msg, push=False, title=None):
         log.error("could not save event (%s): %s", e, msg)
     log.info("event [%s/%s] %s: %s", category, level, nid, msg)
     if push:
-        notify(title or f"{nid} {kind}", msg, level, category,
+        notify(title or f"{node_name(nid)} {kind}", msg, level, category, key=key or f"{kind}:{nid}", hold=hold,
                push={"tag": f"{nid}-{kind}", "url": "/#alerts" if level != "ok" else "/"})
 
 
@@ -922,7 +1176,9 @@ class Condition:
                                           "title": title, "category": CATEGORIES.get(kind, "system"),
                                           "ack": False, "ack_by": None}
                     save_active_alerts()
-                    log_event(nid, kind, level, msg, push=True, title=title)
+                    hold = (max(0, setting("offline_push_min") * 60 - delay) if kind == "offline"
+                            else 120 if kind == "sensor" else 0)
+                    log_event(nid, kind, level, msg, push=True, title=title, key=key, hold=hold)
                     if REPORT_ALERTS and level == "crit":
                         queue_email("alert", alert={"node": nid, "level": level, "title": title, "msg": msg})
                 elif a is not None:
@@ -934,7 +1190,7 @@ class Condition:
                 if a:
                     save_active_alerts()
                     log_event(nid, kind, "ok", f"{clear_msg} (after {fmt_dur(now - a['since'])})",
-                              push=True, title=f"{title}")
+                              push=True, title=clear_msg, key=key)
                     if REPORT_ALERTS and a.get("level") == "crit":
                         queue_email("alert", alert={"node": nid, "level": "ok", "title": f"{title} - resolved",
                                                     "msg": f"{clear_msg} (after {fmt_dur(now - a['since'])})"})
@@ -959,34 +1215,35 @@ def check_alerts():
             Condition.check("pi_disk:pi", pct > DISK_FULL_PCT, 0, nid, "warn", "SD card almost full",
                             f"SD card {pct:.0f}% full", "SD card space OK")
             continue
+        nm = node_name(nid)
         interval = i.get("interval_s") or 10
         seen = max(n.get("seen") or 0, n["temp_ts"] or 0)
         offline = n["status"] != "online" or now - seen > max(3 * interval, 90)
         last = fmt_time(seen) if seen else "never"
-        Condition.check(f"offline:{nid}", offline, OFFLINE_AFTER, nid, "crit", f"{nid} offline",
-                        f"{nid} stopped reporting (last seen {last}). It keeps storing readings and "
-                        f"will send them when it reconnects.", f"{nid} is back online")
+        Condition.check(f"offline:{nid}", offline, OFFLINE_AFTER, nid, "crit", f"{nm} offline",
+                        f"{nm} stopped reporting (last seen {last}). It keeps storing readings and "
+                        f"will send them when it reconnects.", f"{nm} is back online")
         if offline:
             continue
         no_data = n["temp_ts"] is None or now - n["temp_ts"] > max(3 * interval, 120)
         Condition.check(f"sensor:{nid}", i.get("sensor") == "missing" or no_data, 60, nid, "crit",
-                        f"{nid}: temperature sensor not reading",
-                        f"The temperature sensor on {nid} cannot be read, so no temperature or humidity is being "
+                        f"{nm}: sensor not reading",
+                        f"The temperature sensor on {nm} cannot be read, so no temperature or humidity is being "
                         f"recorded. The node itself is online. Check the sensor's power, the data wire to GPIO 1 "
                         f"and the 4.7 kOhm pull-up resistor.",
-                        f"{nid}: temperature sensor reading normally again")
+                        f"{nm}: sensor reading normally again")
         for metric, unit, val in (("temp", "C", n["temp"]), ("hum", "%RH", n.get("hum"))):
             hi, lo = LIMITS[f"{metric}_high"], LIMITS[f"{metric}_low"]
             name = "Temperature" if metric == "temp" else "Humidity"
             k_hi, k_lo = f"{metric}_high:{nid}", f"{metric}_low:{nid}"
             if hi is not None and val is not None:
                 bad = val > hi or (k_hi in active_alerts and val > hi - 0.5)
-                Condition.check(k_hi, bad, 60, nid, "warn", f"{nid} {name.lower()} high",
-                                f"{name} at {nid}: {val} {unit} (limit {hi:g})", f"{name} at {nid} back below {hi:g}")
+                Condition.check(k_hi, bad, 60, nid, "warn", f"{nm} {name.lower()} high",
+                                f"{name} at {nm}: {val} {unit} (limit {hi:g})", f"{name} at {nm} back below {hi:g}")
             if lo is not None and val is not None:
                 bad = val < lo or (k_lo in active_alerts and val < lo + 0.5)
-                Condition.check(k_lo, bad, 60, nid, "warn", f"{nid} {name.lower()} low",
-                                f"{name} at {nid}: {val} {unit} (limit {lo:g})", f"{name} at {nid} back above {lo:g}")
+                Condition.check(k_lo, bad, 60, nid, "warn", f"{nm} {name.lower()} low",
+                                f"{name} at {nm}: {val} {unit} (limit {lo:g})", f"{name} at {nm} back above {lo:g}")
     with alerts_lock:
         gone = [k for k, a in active_alerts.items() if a["node"] not in snap and a["node"] != PI_ID]
         for key in gone:
@@ -1785,12 +2042,13 @@ def api_nodes():
                      "user": AIO_USER if g.role == "admin" else None},
         "alerts": _alerts_list(),
         "notify": {k: v for k, v in notify_state.items()},
+        "inbox_unread": _inbox_unread(),
         "push": {"enabled": WEBPUSH_OK, "devices": _push_devices(), "last_ok": push_state["last_ok"],
                  "last_error": push_state["last_error"]},
         "email": {**email_state, "daily_at": REPORT_TIME or None, "alerts": REPORT_ALERTS,
                   "to": REPORT_TO if g.role == "admin" else [_mask(a) for a in REPORT_TO]},
         "storage": {**storage_state, "pending": len(pending), "flush_s": FLUSH_S, "keep_days": KEEP_DAYS},
-        "speaker": {"name": SPEAKER_NAME or None, "daily_at": SUMMARY_TIME or None, **speak_state},
+        "speaker": {"name": SPEAKER_NAME or None, "daily_at": setting("summary_time") or None, **speak_state},
         "google": {"enabled": GH_ENABLED, "linked": GH_ENABLED and _gh_linked(), **gh_state, "live": GH_REPORT,
                    "live_error": gh_sa["error"], "last_report": gh_sa["last_report"]},
     })
@@ -3152,7 +3410,7 @@ def speak(text, speaker=None):
 
 
 def queue_speak(text, push_title=None):
-    if push_title and SUMMARY_PUSH:
+    if push_title and setting("summary_push"):
         notify(push_title, text, "info", "summary", push={"tag": "summary", "url": "/#overview"})
     if SPEAKER_NAME:
         try:
@@ -3192,10 +3450,11 @@ def summary_loop():
                 day = day_of(time.time() - 86400)
             text = str(req.get("text") or "")[:4000] or build_summary(day)["text"]
             queue_speak(text, push_title=None if req.get("text") else f"{SITE_NAME}: summary")
-        if not SUMMARY_TIME:
+        at = setting("summary_time")
+        if not at:
             continue
         today = day_of(time.time())
-        if time.strftime("%H:%M") < SUMMARY_TIME:
+        if time.strftime("%H:%M") < at:
             continue
         try:
             with open(state_path) as f:
@@ -3231,7 +3490,7 @@ def api_summary():
         raise BadRequest("day must be YYYY-MM-DD, 'yesterday' or empty for today")
     out = build_summary(day or None)
     out["speaker"] = {"name": SPEAKER_NAME or None, "last_ok": speak_state["last_ok"],
-                      "last_error": speak_state["last_error"], "daily_at": SUMMARY_TIME or None}
+                      "last_error": speak_state["last_error"], "daily_at": setting("summary_time") or None}
     return jsonify(out)
 
 
@@ -3248,6 +3507,47 @@ def api_summary_speak():
     if not queue_speak(text):
         return jsonify(error="Busy - try again in a moment"), 503
     return jsonify(ok=True, speaker=SPEAKER_NAME)
+
+
+@app.get("/api/inbox")
+def api_inbox():
+    limit = int(arg_num("limit", 50, 1, 200))
+    before = request.args.get("before")
+    q = "SELECT id, ts, title, body, level, cat, url, pushed, why, read FROM notifications"
+    args = ()
+    if before:
+        q += " WHERE ts < ?"
+        args = (float(before),)
+    with db_lock:
+        rows = db.execute(q + " ORDER BY ts DESC, id DESC LIMIT ?", (*args, limit)).fetchall()
+        unread = db.execute("SELECT COUNT(*) FROM notifications WHERE read = 0 AND (pushed = 1 OR level = 'crit')").fetchone()[0]
+        day = db.execute("SELECT SUM(pushed), COUNT(*) FROM notifications WHERE ts > ?", (time.time() - 86400,)).fetchone()
+    return jsonify({"items": [{"id": r[0], "ts": r[1], "title": r[2], "body": r[3], "level": r[4], "cat": r[5], "url": r[6],
+                               "pushed": bool(r[7]), "why": r[8], "read": bool(r[9])} for r in rows],
+                    "unread": unread, "today": {"pushed": day[0] or 0, "total": day[1] or 0}, "quiet_now": quiet_now()})
+
+
+@app.post("/api/inbox/read")
+def api_inbox_read():
+    with db_lock:
+        db.execute("UPDATE notifications SET read = 1 WHERE read = 0")
+        db.commit()
+    return jsonify(ok=True)
+
+
+@app.get("/api/settings")
+def api_settings():
+    return jsonify({"settings": all_settings(), "devices": _push_devices(), "ntfy": notify_state["channels"],
+                    "weather": {"place": WX_PLACE or None, "enabled": WX_ENABLED}, "version": HUB_VERSION})
+
+
+@app.post("/api/settings")
+def api_settings_save():
+    err = save_settings(request.get_json(silent=True) or {})
+    if err:
+        return jsonify(error=err), 400
+    log_event(PI_ID, "start", "info", "Settings changed on the dashboard")
+    return jsonify(ok=True, settings=all_settings())
 
 
 try:
@@ -3397,7 +3697,7 @@ def push_loop():
                 continue
             if not msg.get("only") and not pr.get(msg["cat"], False) and msg["level"] != "crit":
                 continue
-            m = dict(msg, silent=bool(pr.get("quiet") and _quiet_now() and msg["level"] != "crit"))
+            m = dict(msg, silent=bool(pr.get("quiet") and quiet_now() and msg["level"] != "crit"))
             m.pop("only", None)
             for attempt in range(3):
                 try:
@@ -4067,7 +4367,10 @@ def rain_check_tick():
                                   None if ask else "agreed"))
                 cid = cur.lastrowid
                 db.commit()
-            if ask and len(rain_state["asked"]) < RAIN_ASK_PER_DAY and RAIN_ALERTS:
+            with db_lock:
+                asked_today = db.execute("SELECT COUNT(*) FROM notifications WHERE key LIKE 'rainq-%' AND pushed = 1 "
+                                         "AND ts > ?", (now - 86400,)).fetchone()[0]
+            if ask and asked_today < RAIN_ASK_PER_DAY and setting("rain_questions"):
                 rain_state["asked"].append(now)
                 q, why = _rain_question((cid, e["ts"], nid, int(e["forecast"]), e["desc"], int(sensor), rise, peak, pred))
                 base = _public_url()
@@ -4469,15 +4772,14 @@ def check_insights():
     now = time.time()
     for ins in live_insights():
         kind = ins["key"].split(":")[0]
-        if kind in ("rain", "rainnow") and not RAIN_ALERTS or kind in ("vent", "mould", "heat", "dew") and not TIPS_ALERTS:
+        if kind in ("rain", "rainnow") and not setting("rain_alerts") or kind in ("vent", "mould", "heat", "dew") and not setting("tips"):
             continue
         if ins["key"] == "rain:forecast" or kind in ("drying", "sun"):
             continue
-        if now - insight_sent.get(ins["key"], 0) < (3 if kind == "rainnow" else 6) * 3600:
+        if recently_pushed(ins["key"], (3 if kind == "rainnow" else 6) * 3600):
             continue
-        if kind == "rain" and now - insight_sent.get(ins["key"].replace("rain:", "rainnow:"), 0) < 3 * 3600:
+        if kind == "rain" and recently_pushed(ins["key"].replace("rain:", "rainnow:"), 3 * 3600):
             continue
-        insight_sent[ins["key"]] = now
         notify({"rain": "Rain on the way", "rainnow": "Raining now", "mould": "Damp air", "vent": "Cooler outside",
                 "heat": "Feels hot", "dew": "Dew tonight"}.get(kind, "Tip"), ins["text"], "info", "insight",
                push={"cat": "rain" if kind in ("rain", "rainnow") else "tips", "tag": ins["key"], "url": "/#overview"})
@@ -4716,7 +5018,7 @@ def main():
         clock_ready(verified=True)
     for fn in (pi_loop, adafruit_loop, flush_loop, cleanup_loop, time_loop, notify_loop, alert_loop, email_loop,
                report_loop, outage_loop, gh_loop, speak_loop, summary_loop,
-               weather_loop, rain_loop, push_loop, predict_loop):
+               weather_loop, rain_loop, push_loop, predict_loop, gate_loop):
         spawn(fn)
     log.info("Dashboard on http://0.0.0.0:%d  (Adafruit IO %s, alerts via %s, disk writes every %d s)", PORT,
              "on" if AIO_USER and AIO_KEY else "off", ", ".join(notify_state["channels"]) or "nothing", FLUSH_S)

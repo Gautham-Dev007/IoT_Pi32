@@ -5,4 +5,9 @@ __pycache__/
 *.pyc
 *.bin
 *.db
+*.db-wal
+*.db-shm
 *.env
+.vscode/
+.idea/
+.DS_Store

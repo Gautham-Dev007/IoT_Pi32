@@ -27,6 +27,8 @@ Everything you can run, set or call. For an overview and setup steps, see the [R
    1. [Rain](#81-rain)
    2. [Temperature, dew and SD card](#82-temperature-dew-and-sd-card)
 9. [App notifications](#9-app-notifications)
+10. [How notifications are filtered](#10-how-notifications-are-filtered)
+11. [Settings page](#11-settings-page)
 
 ---
 
@@ -207,6 +209,8 @@ from `/api/login`.
 | `GET /api/summary?day=yesterday` | day summary: `headline`, `text` (short spoken briefing), `attention` (problems, anomalies, warnings), `nodes` (highs/lows with times), `marks` (for charts), `sections` and `detail_text` |
 | `GET /api/weather?hours=48` | outside now, hourly history and forecast, daily forecast, live insights |
 | `GET /api/outlook` | per node: `tonight` (low, time, forecast), `tomorrow` (high/low), `dew`, `series` (next 24 h: time, expected, forecast); `score` (average error of past calls vs the baseline); `disk` (GB a month, days until nearly full) |
+| `GET /api/inbox?limit=50&before=<ts>` | every notification, newest first: `title`, `body`, `level`, `cat`, `pushed`, `why` (reason it was kept quiet), `read`; plus `unread` and the last 24 h counts |
+| `GET /api/settings` | the Settings page values, number of app devices, ntfy channels |
 | `GET /api/push` | app notifications: `enabled`, public `key`, devices; `?endpoint=` adds this device's choices as `this` |
 | `GET /api/rain` | rain `outlook` (chance in the next 2 h, reasons), `open` questions, your `recent` answers, `model` (examples, weights, "it's raining" signature), `score` (rains caught and false alarms, next to the forecast) |
 | `GET /api/health` | background jobs, storage, broker |
@@ -233,6 +237,8 @@ from `/api/login`.
 | `POST /api/nodes/<id>/profile` | `{"name": "Balcony", "place": "outdoor"}` | friendly name and place; empty name = back to the ID |
 | `POST /api/rain/<id>/answer` | `{"answer": "yes"}` | `yes`, `no` or `unsure`. Also accepts `?a=yes&sig=…` without a session: the signed links in the phone notification's buttons |
 | `POST /api/rain/retrain` | – | retrain the rain predictor now (it does this every 6 h anyway) |
+| `POST /api/inbox/read` | – | mark the inbox read |
+| `POST /api/settings` | `{"quiet_start": "22:30"}` | change one or more settings (see section 11) |
 | `POST /api/push/subscribe` | `{"subscription": {…}, "prefs": {"problems": true, "rain": true, "summary": true, "tips": false, "quiet": true}, "label": "Android app"}` | add or update a device (the browser's `PushSubscription.toJSON()`) |
 | `POST /api/push/unsubscribe` | `{"endpoint": "…"}` | remove a device (no sign-in needed: knowing the endpoint is enough) |
 | `POST /api/push/test` | `{"endpoint": "…"}` | send a test to that device |
@@ -335,8 +341,8 @@ the card would reach the "nearly full" limit; with old readings pruned it usuall
 ## 9. App notifications
 
 The installed dashboard app (or the browser) can get notifications straight from the hub with standard
-Web Push, alongside or instead of ntfy/Telegram. Turn them on per device with the **Notify** button
-(admin sign-in). Each device chooses:
+Web Push, alongside or instead of ntfy/Telegram. Turn them on per device with **Phone notifications**
+(admin sign-in) on the Activity page or in Settings. Each device chooses:
 
 | Choice | Default | What |
 | --- | --- | --- |
@@ -350,3 +356,34 @@ Requirements: an https address (the Tailscale Funnel link, also what Share shows
 on the Pi (installed by `setup-dashboard.sh`). Android, desktop Chrome/Edge/Firefox work in the browser or the
 installed app; on iPhone (iOS 16.4+) add it to the Home Screen first and turn notifications on from the app.
 Devices that uninstall the app or block notifications are removed automatically.
+
+## 10. How notifications are filtered
+
+Everything goes into the inbox (the Activity page, `GET /api/inbox`, kept 60 days). What reaches a phone:
+
+| Rule | |
+| --- | --- |
+| Offline delay | "Offline" is pushed only once a node has been gone for `offline_push_min` (default 5 min). If it comes back sooner, both messages stay in the inbox as "fixed itself quickly". Sensor faults wait 2 min more |
+| Cool-down | the same thing isn't pushed again within 30 min (problems), 3 h (rain), 12 h (tips), 18 h (summary), checked in the database so a hub restart doesn't reset it |
+| Flapping | a problem that starts 3 times in an hour is pushed once as "…, again and again", then kept quiet for two hours |
+| Back to normal | pushed only if the problem itself was pushed (`recovery`: `pushed`, `always`, `never`) |
+| Hourly limit | at most `max_per_hour` (default 4) non-critical pushes an hour |
+| Quiet hours | `quiet_start` to `quiet_end` (default 22:00–07:00): non-critical notifications arrive silently |
+| Hub messages | service restarts, settings changes and similar are only listed on the Activity page |
+| ntfy / Telegram | `ntfy_mode`: `auto` (everything until a device has app notifications, then critical only), `all`, `critical`, `off` |
+| Critical | power cuts, nodes offline, sensor faults and storage failures always get through the hourly limit and quiet hours |
+
+## 11. Settings page
+
+Changed on the dashboard (admin) and kept in the database; they win over the values in the `.env` files.
+
+| Setting | Default (or `.env` key) |
+| --- | --- |
+| `ntfy_mode` | `auto` (`NTFY_MODE`) |
+| `quiet_start`, `quiet_end` | `22:00`, `07:00` (`QUIET_START`, `QUIET_END`) |
+| `max_per_hour` | `4` (`MAX_PUSH_PER_HOUR`) |
+| `offline_push_min` | `5` (`OFFLINE_PUSH_MIN`) |
+| `recovery` | `pushed` (`RECOVERY_PUSH`) |
+| `summary_time`, `summary_push` | `21:00`, on (`SUMMARY_TIME`, `SUMMARY_PUSH`) |
+| `rain_alerts`, `rain_questions`, `tips` | on (`RAIN_ALERTS`, `RAIN_QUESTIONS`, `TIP_ALERTS`) |
+| `temp_high`, `temp_low`, `hum_high`, `hum_low` | none (`TEMP_HIGH`, … from `setup-alerts.sh`) |

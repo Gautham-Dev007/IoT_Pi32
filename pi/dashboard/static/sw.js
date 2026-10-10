@@ -1,4 +1,4 @@
-const CACHE = 'iothub-v2.16';
+const CACHE = 'iothub-v2.18';
 const SHELL = ['/', '/manifest.webmanifest', '/icon-192.png', '/icon-512.png', '/badge-72.png', '/qrcode.js'];
 
 self.addEventListener('install', e => {
