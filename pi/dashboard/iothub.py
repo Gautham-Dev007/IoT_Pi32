@@ -42,7 +42,7 @@ DATA_DIR = os.path.join(HOME, "iothub-data")
 DB_PATH = os.path.join(DATA_DIR, "readings.db")
 STATIC = os.path.join(os.path.dirname(os.path.abspath(__file__)), "static")
 
-HUB_VERSION = "2.18"
+HUB_VERSION = "2.19"
 PI_ID = "pi"
 PI_EVERY_S = 10
 ID_RE = re.compile(r"^[a-z0-9_-]{1,24}$")
@@ -3927,11 +3927,11 @@ RAIN_RISE, RAIN_PEAK = 10.0, 85.0
 RAIN_MODEL_PATH = os.path.join(DATA_DIR, "rain_model.json")
 RAIN_ASK_PER_DAY = 3
 RAIN_FEATURES = ["hum", "rise1h", "rise3h", "tchange1h", "spread", "hum_vs_city", "temp_vs_city",
-                 "fc_prob", "fc_rain", "pressure3h", "cloud", "daytime"]
-RAIN_PRIOR = [2.0, 2.5, 1.0, -1.5, -2.0, 0.5, -0.3, 3.0, 1.0, -0.8, 1.0, 0.0]
+                 "fc_prob", "fc_rain", "pressure3h", "cloud", "daytime", "hour_sin", "hour_cos", "wet_now"]
+RAIN_PRIOR = [2.0, 2.5, 1.0, -1.5, -2.0, 0.5, -0.3, 3.0, 1.0, -0.8, 1.0, 0.0, 0.0, 0.0, 2.5]
 RAIN_PRIOR_B = -5.0
-RAIN_REF = [0.65, 0, 0, 0, 1.0, 0, 0, 0.1, 0, 0, 0.4, 0.5]
-RAIN_LIKE = [0.9, 0.5, 0.4, -0.5, 0.15, 0.2, -0.2, 0.7, 1.0, -0.5, 0.9, 0.5]
+RAIN_REF = [0.65, 0, 0, 0, 1.0, 0, 0, 0.1, 0, 0, 0.4, 0.5, 0, 0, 0]
+RAIN_LIKE = [0.9, 0.5, 0.4, -0.5, 0.15, 0.2, -0.2, 0.7, 1.0, -0.5, 0.9, 0.5, 0, 0, 0]
 with db_lock:
     db.execute("CREATE TABLE IF NOT EXISTS rain_checks (id INTEGER PRIMARY KEY, ts REAL, node TEXT, forecast INTEGER, "
                "fc_desc TEXT, sensor INTEGER, rise REAL, peak REAL, pred REAL, asked REAL, answer TEXT, answered REAL)")
@@ -3980,7 +3980,7 @@ def _ctx(nid, t0, t1):
     for (k, m), vs in acc.items():
         (hum if m == "hum" else tmp)[k] = sum(vs) / len(vs)
     wx = {r[0]: r for r in weather_rows(t0 - 4 * 3600, t1 + 4 * 3600)} if WX_ENABLED else {}
-    return {"node": nid, "hum": hum, "tmp": tmp, "wx": wx, "wxts": sorted(wx)}
+    return {"node": nid, "hum": hum, "tmp": tmp, "wx": wx, "wxts": sorted(wx), "sig": rain_signature()}
 
 
 def _wx_at(c, t):
@@ -4022,11 +4022,22 @@ def _rain_x(ctx, t):
            "pressure3h": (w[7] - w3[7]) if w and w3 and w[7] and w3[7] else 0.0,
            "cloud": w[8] if w and w[8] is not None else None}
     lt = time.localtime(t)
+    sig = ctx.get("sig") or {"rise": RAIN_RISE, "peak": RAIN_PEAK}
+    wet = 0.0
+    for j in range(k - 18, k + 1):
+        if j in hd and hd[j] >= sig["peak"]:
+            pj = [hd[i] for i in range(j - 12, j) if i in hd]
+            if pj and hd[j] - min(pj) >= sig["rise"] or hd[j] >= sig["peak"] + 6:
+                wet = 1.0
+                break
+    raw["wet_now"] = bool(wet)
+    hod = (lt.tm_hour + lt.tm_min / 60) / 24 * 2 * math.pi
     x = [h / 100, rise1 / 20, rise3 / 30, tch / 3, spread / 10,
          (h - raw["city_hum"]) / 20 if raw["city_hum"] is not None else 0.0,
          (tc - raw["city_temp"]) / 5 if raw["city_temp"] is not None else 0.0,
          (raw["fc_prob"] or 0) / 100, 1.0 if raw["fc_rain"] else 0.0, raw["pressure3h"] / 3,
-         (raw["cloud"] if raw["cloud"] is not None else 40) / 100, 1.0 if 7 <= lt.tm_hour < 18 else 0.0]
+         (raw["cloud"] if raw["cloud"] is not None else 40) / 100, 1.0 if 7 <= lt.tm_hour < 18 else 0.0,
+         math.sin(hod), math.cos(hod), wet]
     return x, raw
 
 
@@ -4038,7 +4049,10 @@ def _model():
     if _rain_m["w"] is None:
         try:
             with open(RAIN_MODEL_PATH) as f:
-                _rain_m.update(json.load(f))
+                m = json.load(f)
+            if len(m.get("w") or []) != len(RAIN_FEATURES):
+                raise ValueError("model from an older version")
+            _rain_m.update(m)
         except (OSError, ValueError):
             _rain_m.update(w=list(RAIN_PRIOR), b=RAIN_PRIOR_B, n=0, pos=0, neg=0, trained=None)
     return _rain_m
@@ -4090,10 +4104,12 @@ def _forecast_rain(wx, t0, t1):
         r = wx[ts]
         wet = (r[4] or 0) >= 0.2 or r[6] in RAINY
         if wet and not prev_wet and t0 <= ts < t1:
-            if eps and ts - eps[-1]["ts"] < 2 * 3600:
+            if eps and ts - eps[-1]["end"] < 2 * 3600:
                 prev_wet = wet
                 continue
-            eps.append({"ts": ts, "desc": WMO.get(r[6], "rain") if r[6] in RAINY else "rain", "prob": r[5]})
+            eps.append({"ts": ts, "end": ts + 3600, "desc": WMO.get(r[6], "rain") if r[6] in RAINY else "rain", "prob": r[5]})
+        elif wet and eps and ts - eps[-1]["end"] < 3600:
+            eps[-1]["end"] = ts + 3600
         prev_wet = wet
     return eps
 
@@ -4102,17 +4118,17 @@ def rain_events(t0, t1, ctxs=None):
     outs = outdoor_nodes()
     ctxs = ctxs if ctxs is not None else [_ctx(n, t0 - 4 * 3600, t1) for n in outs]
     wx = ctxs[0]["wx"] if ctxs else ({r[0]: r for r in weather_rows(t0 - 4 * 3600, t1 + 4 * 3600)} if WX_ENABLED else {})
-    out = [{"ts": f["ts"], "desc": f["desc"], "forecast": True, "sensor": None, "node": outs[0] if outs else None,
-            "answer": None, "id": None} for f in _forecast_rain(wx, t0, t1)]
+    out = [{"ts": f["ts"], "end": f["end"], "desc": f["desc"], "forecast": True, "sensor": None,
+            "node": outs[0] if outs else None, "answer": None, "id": None} for f in _forecast_rain(wx, t0, t1)]
     sig = rain_signature()
     for c in ctxs:
         for e in _sensor_rain(c, t0, t1, sig):
             m = next((o for o in out if abs(o["ts"] - e["ts"]) <= 5400), None)
             if m:
-                m.update(sensor=e, node=c["node"])
+                m.update(sensor=e, node=c["node"], end=max(m.get("end") or 0, e["last"]))
             else:
-                out.append({"ts": e["ts"], "desc": "rain", "forecast": False, "sensor": e, "node": c["node"],
-                            "answer": None, "id": None})
+                out.append({"ts": e["ts"], "end": e["last"], "desc": "rain", "forecast": False, "sensor": e,
+                            "node": c["node"], "answer": None, "id": None})
     with db_lock:
         checks = db.execute("SELECT id, ts, answer, node, forecast, sensor, fc_desc FROM rain_checks "
                             "WHERE ts >= ? AND ts < ?", (t0 - 7200, t1 + 7200)).fetchall()
@@ -4131,24 +4147,82 @@ def rain_events(t0, t1, ctxs=None):
 
 
 def _labels(events):
-    pos = [(e["ts"], 3.0 if e["verdict"] == "confirmed" else 1.0) for e in events if e["verdict"] in ("confirmed", "likely")]
+    pos = [(e["ts"], 3.0 if e["verdict"] == "confirmed" else 1.0, max(e.get("end") or 0, e["ts"] + 1800))
+           for e in events if e["verdict"] in ("confirmed", "likely")]
     dry = [(e["ts"], 3.0) for e in events if e["verdict"] == "dry"]
     unsure = [e["ts"] for e in events if e["verdict"] in ("maybe", "forecast")]
     return pos, dry, unsure
 
 
 def _label_at(t, pos, dry, unsure, c):
-    for ts, w in pos:
-        if t - 1800 <= ts <= t + 7200:
+    for ts, w, end in pos:
+        if ts - 7200 <= t <= end:
             return 1, w
     for ts, w in dry:
         if t - 1800 <= ts <= t + 7200:
             return 0, w
-    if any(abs(ts - t) <= 3 * 3600 for ts, _ in pos) or any(t - 3600 <= ts <= t + 3 * 3600 for ts in unsure):
+    if any(ts - 3 * 3600 <= t <= end + 3600 for ts, _w, end in pos) or any(t - 3600 <= ts <= t + 3 * 3600 for ts in unsure):
         return None, 0
     if any(((_wx_at(c, t + 3600 * i) or (0,) * 7)[4] or 0) >= 0.1 for i in (0, 1, 2)):
         return None, 0
     return 0, 0.5
+
+
+def _solve(A, v):
+    n = len(v)
+    M = [row[:] + [v[i]] for i, row in enumerate(A)]
+    for c in range(n):
+        piv = max(range(c, n), key=lambda r: abs(M[r][c]))
+        if abs(M[piv][c]) < 1e-12:
+            return None
+        M[c], M[piv] = M[piv], M[c]
+        for r in range(c + 1, n):
+            f = M[r][c] / M[c][c]
+            if f:
+                for k in range(c, n + 1):
+                    M[r][k] -= f * M[c][k]
+    out = [0.0] * n
+    for r in range(n - 1, -1, -1):
+        out[r] = (M[r][n] - sum(M[r][k] * out[k] for k in range(r + 1, n))) / M[r][r]
+    return out
+
+
+def _fit_logistic(X, Y, W, npos, nneg):
+    w_, b_ = list(RAIN_PRIOR), RAIN_PRIOR_B
+    if npos < 1 or nneg < 5:
+        return w_, b_
+    cw = {1: (npos + nneg) / (2 * npos), 0: (npos + nneg) / (2 * nneg)}
+    Wb = [w * cw[y] for y, w in zip(Y, W)]
+    tot = sum(Wb)
+    lam = 6.0 / (npos + 6.0)
+    prior = RAIN_PRIOR + [RAIN_PRIOR_B]
+    theta = w_ + [b_]
+    d = len(theta)
+    Xa = [x + [1.0] for x in X]
+    for _ in range(25):
+        g = [lam * (theta[i] - prior[i]) for i in range(d)]
+        H = [[lam if i == j else 0.0 for j in range(d)] for i in range(d)]
+        for x, y, wt in zip(Xa, Y, Wb):
+            p = _sig(sum(a * b for a, b in zip(theta, x)))
+            e, q = (p - y) * wt / tot, p * (1 - p) * wt / tot
+            for i in range(d):
+                g[i] += e * x[i]
+                qi = q * x[i]
+                row = H[i]
+                for j in range(i, d):
+                    row[j] += qi * x[j]
+        for i in range(d):
+            for j in range(i):
+                H[i][j] = H[j][i]
+        step = _solve(H, g)
+        if step is None:
+            break
+        theta = [t - s_ for t, s_ in zip(theta, step)]
+        if max(abs(s_) for s_ in step) < 1e-4:
+            break
+    w_, b_ = theta[:-1], theta[-1]
+    b_ += math.log(npos / nneg)
+    return w_, b_
 
 
 def rain_train(days=60):
@@ -4171,22 +4245,7 @@ def rain_train(days=60):
             t += 1800
     npos = sum(w for y, w in zip(Y, W) if y)
     nneg = sum(w for y, w in zip(Y, W) if not y)
-    w_, b_ = list(RAIN_PRIOR), RAIN_PRIOR_B
-    if npos >= 1 and nneg >= 5:
-        cw = {1: (npos + nneg) / (2 * npos), 0: (npos + nneg) / (2 * nneg)}
-        W = [w * cw[y] for y, w in zip(Y, W)]
-        tot = sum(W)
-        lam = 6.0 / (npos + 6.0)
-        lr = 0.5
-        for _ in range(250):
-            gw, gb = [0.0] * len(w_), 0.0
-            for x, y, wt in zip(X, Y, W):
-                e = (_sig(b_ + sum(a * b for a, b in zip(w_, x))) - y) * wt
-                gb += e
-                for i, xi in enumerate(x):
-                    gw[i] += e * xi
-            w_ = [wi - lr * (g / tot + lam * (wi - pi)) for wi, g, pi in zip(w_, gw, RAIN_PRIOR)]
-            b_ -= lr * (gb / tot + lam * (b_ - RAIN_PRIOR_B))
+    w_, b_ = _fit_logistic(X, Y, W, npos, nneg)
     m = {"w": [round(v, 4) for v in w_], "b": round(b_, 4), "n": len(X), "pos": round(npos, 1), "neg": round(nneg, 1),
          "trained": now, "features": RAIN_FEATURES}
     tmp = RAIN_MODEL_PATH + ".tmp"
@@ -4208,6 +4267,7 @@ def rain_score(days=30):
     wxc = {"wx": {r[0]: r for r in weather_rows(now - days * 86400, now)} if WX_ENABLED else {}}
     calls = {"me": [0, 0], "fc": [0, 0]}
     rain_hits = {"me": 0, "fc": 0, "n": 0, "me_false": 0, "fc_false": 0}
+    brier = [0.0, 0.0]
     seen = set()
     for ts, p, fc in preds:
         slot = int(ts // 3600)
@@ -4217,6 +4277,8 @@ def rain_score(days=30):
         y, _w = _label_at(ts, pos, dry, unsure, wxc)
         if y is None:
             continue
+        brier[0] += (p - y) ** 2
+        brier[1] += ((fc or 0) / 100 - y) ** 2
         for k, guess in (("me", p >= 0.5), ("fc", (fc or 0) >= 50)):
             calls[k][0] += int(guess == bool(y))
             calls[k][1] += 1
@@ -4231,10 +4293,12 @@ def rain_score(days=30):
         return None
     return {"hours": calls["me"][1], "right": calls["me"][0], "fc_right": calls["fc"][0],
             "rains": rain_hits["n"], "caught": rain_hits["me"], "fc_caught": rain_hits["fc"],
-            "false_alarms": rain_hits["me_false"], "fc_false_alarms": rain_hits["fc_false"]}
+            "false_alarms": rain_hits["me_false"], "fc_false_alarms": rain_hits["fc_false"],
+            "skill": round(100 * (1 - brier[0] / brier[1])) if brier[1] > 0 else None}
 
 
 REASON = {
+    "wet_now": lambda r: "it looks like it's already raining there",
     "hum": lambda r: f"humidity is high ({r['hum']:.0f}%)",
     "rise1h": lambda r: f"humidity jumped {r['rise1h']:.0f}% in the last hour",
     "rise3h": lambda r: f"humidity is up {r['rise3h']:.0f}% over three hours",
@@ -4465,27 +4529,53 @@ def _sunny(r):
     return 8 <= h < 17 and (r[8] if r[8] is not None else 50) < 50
 
 
-def _offsets(nid, days=14):
+def _wfit(pts, ridge=0.5):
+    sw = sum(w for _x, _y, w in pts)
+    if sw <= 0:
+        return None
+    mx = sum(x * w for x, _y, w in pts) / sw
+    my = sum(y * w for _x, y, w in pts) / sw
+    sxx = sum(w * (x - mx) ** 2 for x, _y, w in pts)
+    sxy = sum(w * (x - mx) * (y - my) for x, y, w in pts)
+    b = sxy / (sxx + ridge)
+    a = my - b * mx
+    var = sum(w * (y - a - b * x) ** 2 for x, y, w in pts) / sw
+    return a, b, math.sqrt(var)
+
+
+def _offsets(nid, days=21):
     now = time.time()
     wx = weather_rows(now - days * 86400, now)
     qt, qh = _q15(nid, "temp", now - days * 86400 - 3600, now), _q15(nid, "hum", now - days * 86400 - 3600, now)
-    t_by, h_by, t_all, h_all = collections.defaultdict(list), collections.defaultdict(list), [], []
+    t_pts, h_pts = collections.defaultdict(list), collections.defaultdict(list)
+    n = 0
     for r in wx:
         hr = time.localtime(r[0]).tm_hour
+        w = 0.5 ** ((now - r[0]) / 86400 / 10)
+        clear = 1 - (r[8] if r[8] is not None else 50) / 100
         v = _near(qt, r[0])
         if v is not None and r[1] is not None:
-            t_by[(hr, _sunny(r))].append(v - r[1])
-            t_by[(hr, None)].append(v - r[1])
-            t_all.append(v - r[1])
+            n += 1
+            for dh, f in (((0, 1.0),) if 8 <= hr < 18 else ((0, 1.0), (-1, 0.35), (1, 0.35))):
+                if dh and 8 <= (hr + dh) % 24 < 18:
+                    continue
+                t_pts[(hr + dh) % 24].append((clear, v - r[1], w * f))
         v = _near(qh, r[0])
         if v is not None and r[2] is not None:
-            h_by[hr].append(v - r[2])
-            h_all.append(v - r[2])
-    if len(t_all) < 24:
+            for dh, f in ((0, 1.0), (-1, 0.35), (1, 0.35)):
+                h_pts[(hr + dh) % 24].append((0.0, v - r[2], w * f))
+    if n < 24:
         return None
-    return {"t": {k: _median(v) for k, v in t_by.items() if len(v) >= 3}, "t_all": _median(t_all),
-            "h": {k: _median(v) for k, v in h_by.items() if len(v) >= 3}, "h_all": _median(h_all) if h_all else 0.0,
-            "hours": len(t_all)}
+    allt = [p for v in t_pts.values() for p in v]
+    base = _wfit(allt, ridge=1e9)
+    t_fit = {hr: _wfit(v, ridge=0.1 if 8 <= hr < 18 else 1e9) for hr, v in t_pts.items() if len(v) >= 4}
+    h_fit = {hr: _wfit(v, ridge=1e9) for hr, v in h_pts.items() if len(v) >= 4}
+    return {"t": t_fit, "t_all": base, "h": h_fit, "hours": n}
+
+
+def _t_offset(off, hr, clear):
+    f = off["t"].get(hr) or off["t_all"]
+    return f[0] + f[1] * clear, f[2]
 
 
 def _next_9am(ts):
@@ -4498,17 +4588,31 @@ def _outdoor_outlook(nid, now):
     off = _offsets(nid)
     if not off:
         return None
-    fut = weather_rows(now - 1800, now + 36 * 3600)
+    fut = weather_rows(now - 3 * 3600, now + 36 * 3600)
+    q = _q15(nid, "temp", now - 1800, now + 60)
+    err = 0.0
+    past = [r for r in fut if r[0] <= now and r[1] is not None]
+    if q and past:
+        r0 = past[-1]
+        nxt = next((r for r in fut if r[0] > now and r[1] is not None), None)
+        fc_now = r0[1] + ((nxt[1] - r0[1]) * (now - r0[0]) / (nxt[0] - r0[0]) if nxt else 0.0)
+        o_now, _sd = _t_offset(off, time.localtime(now).tm_hour, 1 - (r0[8] if r0[8] is not None else 50) / 100)
+        err = max(-4.0, min(4.0, sum(q.values()) / len(q) - (fc_now + o_now)))
     series = []
     for r in fut:
-        if r[1] is None:
+        if r[1] is None or r[0] < now - 1800:
             continue
         hr = time.localtime(r[0]).tm_hour
-        o = off["t"].get((hr, _sunny(r)), off["t"].get((hr, None), off["t_all"]))
-        ho = off["h"].get(hr, off["h_all"])
-        series.append({"ts": r[0], "pred": round(r[1] + o, 1), "fc": r[1],
+        clear = 1 - (r[8] if r[8] is not None else 50) / 100
+        o, sd = _t_offset(off, hr, clear)
+        fade = math.exp(-max(0.0, r[0] - now) / (3 * 3600))
+        pred = r[1] + o + err * fade
+        hf = off["h"].get(hr)
+        ho = hf[0] if hf else 0.0
+        band = 1.28 * math.sqrt(sd ** 2 * (1 - fade ** 2) + 0.15 ** 2)
+        series.append({"ts": r[0], "pred": round(pred, 1), "fc": r[1], "lo80": round(pred - band, 1), "hi80": round(pred + band, 1),
                        "hum": round(min(100.0, max(0.0, (r[2] or 0) + ho)), 0) if r[2] is not None else None,
-                       "dew": r[3], "sun": _sunny(r) and o >= 3})
+                       "dew": r[3], "sun": 8 <= hr < 17 and o >= 3})
     if not series:
         return None
     morning = _next_9am(now)
@@ -4518,17 +4622,19 @@ def _outdoor_outlook(nid, now):
     tday = [p for p in series if t0 <= p["ts"] < t1]
     daytime = [p for p in tday if 9 <= time.localtime(p["ts"]).tm_hour < 18]
     out = {"node": nid, "name": node_name(nid), "where": _where(nid), "place": "outdoor", "learned_hours": off["hours"],
-           "series": [[p["ts"], p["pred"], p["fc"]] for p in series if p["ts"] <= now + 24 * 3600]}
+           "series": [[p["ts"], p["pred"], p["fc"], p["lo80"], p["hi80"]] for p in series if p["ts"] <= now + 24 * 3600],
+           "nowcast": round(err, 1)}
     if night:
         lo = min(night, key=lambda p: p["pred"])
-        out["tonight"] = {"lo": lo["pred"], "lo_t": lo["ts"], "fc_lo": min(p["fc"] for p in night)}
+        out["tonight"] = {"lo": lo["pred"], "lo_t": lo["ts"], "fc_lo": min(p["fc"] for p in night),
+                          "range": [lo["lo80"], lo["hi80"]]}
         dew = next((p for p in night if (p["hum"] or 0) >= 94), None)
         if dew:
             out["dew"] = {"ts": dew["ts"], "hum": dew["hum"]}
     if daytime:
         hi = max(daytime, key=lambda p: p["pred"])
         out["tomorrow"] = {"day": tmr_day, "hi": hi["pred"], "hi_t": hi["ts"], "fc_hi": max(p["fc"] for p in daytime),
-                           "sun": hi["sun"]}
+                           "sun": hi["sun"], "range": [hi["lo80"], hi["hi80"]]}
         if len(tday) >= 20:
             out["tomorrow"].update(lo=min(p["pred"] for p in tday), fc_lo=min(p["fc"] for p in tday))
     return out

@@ -182,15 +182,26 @@ Everything runs on the Pi; nothing is sent to an AI service.
 
 | Prediction | Looks at | Learns from |
 | --- | --- | --- |
-| **Rain in the next 2 h** (outdoor nodes) | humidity level and how fast it's rising (1 h, 3 h), cooling, distance from saturation, sensor vs city readings, forecast rain chance, pressure change, cloud | a small logistic regression retrained every 6 h on 60 days: what happened after each moment, and your answers (worth three times as much). Starts from a sensible built-in guess. |
+| **Rain in the next 2 h** (outdoor nodes) | humidity level and how fast it's rising (1 h, 3 h), cooling, distance from saturation, whether it already looks like rain, time of day, sensor vs city readings, forecast rain chance, pressure change, cloud | a logistic regression retrained every 6 h on 60 days (exact fit, a fraction of a second on the Pi): what happened after each moment, and your answers (worth three times as much). Starts from a sensible built-in guess; the percentages are calibrated, so 30% means rain about 3 times in 10. |
 | **"It's raining now"** | humidity jump in the last hour and its peak | your yes/no answers move the thresholds |
-| **Tonight's low, tomorrow's high** (outdoor) | the hourly forecast | how this spot differs from it at each hour of the day, separately for sunny and cloudy hours (14 days) |
+| **Tonight's low, tomorrow's high, next 24 h** (outdoor) | the hourly forecast and cloud cover, and what the sensor reads right now | how this spot differs from the forecast at each hour, growing with how clear the sky is (sun on the sensor), over 21 days with recent days counting most; the next few hours also follow the current reading. Comes with a likely range that holds 8 times in 10 |
 | **Tomorrow's range** (indoor) | the outdoor forecast | how the room's daily high and low followed the weather (3 weeks) |
 | **Dew overnight** | the spot's expected humidity | as above |
 | **SD card full** | daily used space | the trend over up to 60 days |
 
 Every evening's temperature call and every rain prediction is saved and scored against what really
-happened, next to the plain forecast, so you can see whether it's earning its keep. Details in the
+happened, next to the plain forecast, so you can see whether it's earning its keep.
+
+On a 70-day simulated balcony with a forecast that's biased, misses a quarter of the rain and gives false
+alarms (scored day by day, each day using only what the hub knew beforehand):
+
+| | Hub | Forecast alone |
+| --- | --- | --- |
+| Rain in the next 2 h, Brier score (lower is better) | **0.028** | 0.063 |
+| Rainy half-hours caught at 50% / false alarms | **62 of 79 / 19** | 38 of 79 / 26 |
+| Tonight's low, average error | **0.56°** | 1.43° |
+| Tomorrow's high (with afternoon sun), average error | **1.10°** | 3.60° |
+| Next 6 hours, average error | **0.52°** | 1.22° | Details in the
 [reference](docs/REFERENCE.md#8-predictions).
 
 ### 3.4 Firmware updates

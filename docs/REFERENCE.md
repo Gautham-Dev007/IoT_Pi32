@@ -293,11 +293,14 @@ Works when at least one node is marked **outdoor** (node card on the dashboard, 
 
 **What it looks at.** Every 15 minutes, from the outdoor node's graph: humidity level, how much it rose in the
 last hour and three hours, how much the temperature changed in the last hour, and how close the air is to
-saturation (temperature minus dew point). From the online weather: city temperature and humidity (the sensor
+saturation (temperature minus dew point), and whether the "it's raining" signature showed in the last 90 minutes.
+The time of day (afternoon storms). From the online weather: city temperature and humidity (the sensor
 compared with them), rain chance and rain in the next two hours, pressure change over three hours, cloud cover.
 
-**How it learns.** A small logistic regression, retrained every 6 hours on the last 60 days, sampled every 30 min.
-Each moment is labelled "rain started within two hours" or "stayed dry" from what happened afterwards:
+**How it learns.** A logistic regression, fitted exactly (Newton's method, under a second on the Pi), retrained
+every 6 hours on the last 60 days, sampled every 30 min. Rain and dry moments are balanced while fitting and the
+intercept is moved back afterwards, so the percentages are calibrated (30% = rain about 3 times in 10).
+Each moment is labelled "rain starts within two hours, or it's raining" or "stayed dry" from what happened afterwards:
 rain that both the forecast and the sensor saw, or that you confirmed, counts as rain; your "no, it stayed dry"
 answers count as dry. Your answers weigh three times as much. With little data it stays close to a built-in
 starting guess and moves away as examples come in.
@@ -320,11 +323,16 @@ Files: `~/iothub-data/rain_model.json` (current weights). Tables: `rain_checks` 
 
 ### 8.2 Temperature, dew and SD card
 
-**Outdoor nodes:** the online hourly forecast, corrected by how this spot usually differs from it. The hub
-learns the median difference for each hour of the day, separately for sunny and cloudy hours, from the last
-14 days, so a balcony that gets the afternoon sun is expected to run hot exactly then. From that: tonight's
-low, tomorrow's high, and a 24-hour curve on the Outlook card (solid = expected here, dashed = forecast).
-Needs about a day of readings with weather before it starts.
+**Outdoor nodes:** the online hourly forecast, corrected by how this spot differs from it. For each hour of the
+day the hub fits the difference as a straight line in how clear the sky is (the sun on the sensor), over the last
+21 days with a 10-day half-life so recent weather counts most; night hours borrow from their neighbours. The
+next few hours are also nudged by how far the sensor is from that right now (fading over about 3 hours). The
+spread of past errors gives a likely range (80%). From that: tonight's low, tomorrow's high, and a 24-hour curve
+on the Outlook card (solid = expected here, shaded = likely range, dashed = forecast). Needs about a day of
+readings with weather before it starts.
+
+**Rain score:** `GET /api/rain` → `score.skill` is the Brier skill against the forecast's own rain chance:
+how much closer its percentages were to what happened (0 = no better, 100 = perfect).
 
 **Dew:** if this spot's expected humidity overnight reaches 94% (air within about 1° of its dew point), the
 Outlook card says when, and after 6 PM it's a tip ("bring in cushions") on the phone.

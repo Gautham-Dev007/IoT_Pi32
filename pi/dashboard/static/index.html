@@ -268,7 +268,7 @@ body:not(.guest) .guest-only { display: none; }
 .ol-row p { margin: 0; font-size: 14px; line-height: 1.5; }
 .ol-row .chip { display: inline-block; font-size: 12.5px; padding: 1px 8px; border-radius: 10px; background: var(--sunken); border: 1px solid var(--rule); margin: 4px 6px 0 0; }
 .spark { width: 100%; height: 54px; display: block; margin-top: 6px; }
-.spark .p { stroke: var(--accent); } .spark .f { stroke: var(--ink-3); stroke-dasharray: 4 3; }
+.spark .p { stroke: var(--accent); } .spark .b { fill: var(--accent); opacity: .16; stroke: none; } .spark .f { stroke: var(--ink-3); stroke-dasharray: 4 3; }
 .spark-key { font-size: 11.5px; color: var(--ink-3); }
 .rain-why { margin: 0 0 10px; padding-left: 18px; font-size: 14px; } .rain-why li { margin: 2px 0; }
 .rain-why li.lead { list-style: none; margin-left: -18px; font-size: 12.5px; font-weight: 600; color: var(--ink-3); text-transform: uppercase; letter-spacing: .4px; }
@@ -994,12 +994,12 @@ const rain = {
       this.load(); sum.load();
     });
     const sc = d.score, m = d.model;
-    $('#rainHow').innerHTML = `<p>Every 15 minutes the hub looks at the shape of the ${esc(o?.name || 'outdoor')} graph (how fast humidity is climbing, whether it's cooling, how close the air is to saturation) and compares it with the online weather (city temperature and humidity, rain chance, pressure, cloud). It starts from a sensible built-in guess and retrains every 6 hours on what actually happened, with your answers counting three times as much.</p>
+    $('#rainHow').innerHTML = `<p>Every 15 minutes the hub looks at the shape of the ${esc(o?.name || 'outdoor')} graph (how fast humidity is climbing, whether it's cooling, how close the air is to saturation, whether it already looks like rain) and the time of day, and compares it with the online weather (city temperature and humidity, rain chance, pressure, cloud). It retrains every 6 hours on what actually happened, with your answers counting three times as much, and its percentages are calibrated: when it says 30%, it has rained about 3 times in 10.</p>
       <p>${m.trained ? `Last trained ${hm(m.trained)} on ${m.examples} moments, ${Math.round(m.rain_examples)} of them just before rain.` : 'Not trained yet: using the built-in guess.'}
       "It's raining" means humidity up ${m.signature.rise.toFixed(0)}% in an hour to at least ${m.signature.peak.toFixed(0)}% (tuned from your answers).</p>
-      ${sc ? `<p>Last 30 days: ${sc.rains ? `caught ${sc.caught} of ${sc.rains} rains` : 'no rain yet'} with ${sc.false_alarms} false alarm${sc.false_alarms === 1 ? '' : 's'}; the forecast alone ${sc.rains ? `caught ${sc.fc_caught} with` : 'had'} ${sc.fc_false_alarms}.</p>` : ''}
+      ${sc ? `<p>Last 30 days: ${sc.skill != null ? `its rain chances were <b>${sc.skill > 0 ? sc.skill + '% closer' : 'no closer'}</b> to what happened than the forecast's (Brier skill). ` : ''}${sc.rains ? `It caught ${sc.caught} of ${sc.rains} rainy hours` : 'No rain yet'} with ${sc.false_alarms} false alarm${sc.false_alarms === 1 ? '' : 's'}; the forecast alone ${sc.rains ? `caught ${sc.fc_caught} with` : 'had'} ${sc.fc_false_alarms}.</p>` : ''}
       ${Object.entries(ol?.score || {}).filter(([, v]) => v.calls >= 4).map(([id, v]) => `<p>Temperature calls for ${esc(nodeLbl(id))}: off by ${v.off_by}° on average over ${v.calls} calls${v.base_off_by != null ? ` (${esc(v.base)}: ${v.base_off_by}°)` : ''}.</p>`).join('')}
-      <p>Temperatures: for outdoor nodes, the online forecast corrected by how this spot usually differs from it at each hour, sunny or cloudy. For indoor nodes, how the room's highs and lows have followed the weather over the last three weeks. Each evening's call for tomorrow is saved and scored.</p>
+      <p>Temperatures: for outdoor nodes, the online forecast corrected by how this spot differs from it at each hour, more in the sun when the sky is clear; recent days count most. The next few hours also follow what the sensor reads right now. The shaded band is where the temperature lands 8 times in 10. For indoor nodes, how the room's highs and lows have followed the weather over the last three weeks. Each evening's call for tomorrow is saved and scored.</p>
       ${(d.recent || []).length ? `<p>Your answers: ${d.recent.slice(0, 6).map(r => `${esc(new Date(r.ts * 1000).toLocaleDateString([], { day: 'numeric', month: 'short' }))} ${esc(hm(r.ts))} ${r.answer === 'yes' ? 'rain' : r.answer === 'no' ? 'dry' : r.answer === 'agreed' ? 'rain (sensor and forecast agreed)' : 'not sure'}`).join(' · ')}</p>` : ''}`;
   },
 };
@@ -1011,12 +1011,14 @@ function diskTxt(k) {
 }
 function spark(series) {
   if (!series || series.length < 3) return '';
-  const vs = series.flatMap(p => [p[1], p[2]]), lo = Math.min(...vs) - .5, hi = Math.max(...vs) + .5;
+  const banded = series[0].length > 4;
+  const vs = series.flatMap(p => banded ? [p[1], p[2], p[3], p[4]] : [p[1], p[2]]), lo = Math.min(...vs) - .5, hi = Math.max(...vs) + .5;
   const x0 = series[0][0], x1 = series[series.length - 1][0];
   const pt = (t, v) => `${((t - x0) / (x1 - x0) * 300).toFixed(1)},${(52 - (v - lo) / (hi - lo) * 48).toFixed(1)}`;
   const line = (i, c) => `<polyline class="${c}" fill="none" stroke-width="2" vector-effect="non-scaling-stroke" points="${series.map(p => pt(p[0], p[i])).join(' ')}"/>`;
-  return `<svg class="spark" viewBox="0 0 300 54" preserveAspectRatio="none" role="img" aria-label="Expected temperature, next 24 hours">${line(2, 'f')}${line(1, 'p')}</svg>
-    <div class="spark-key">Next 24 h: solid = expected here, dashed = online forecast · ${esc(hm(x0))} to ${esc(hm(x1))}</div>`;
+  const band = banded ? `<polygon class="b" points="${series.map(p => pt(p[0], p[4])).join(' ')} ${series.slice().reverse().map(p => pt(p[0], p[3])).join(' ')}"/>` : '';
+  return `<svg class="spark" viewBox="0 0 300 54" preserveAspectRatio="none" role="img" aria-label="Expected temperature, next 24 hours">${band}${line(2, 'f')}${line(1, 'p')}</svg>
+    <div class="spark-key">Next 24 h: solid = expected here${banded ? ', shaded = likely range' : ''}, dashed = online forecast · ${esc(hm(x0))} to ${esc(hm(x1))}</div>`;
 }
 function olRow(o) {
   const dayWord = d => d === isoDay(new Date()) ? 'Today' : 'Tomorrow';
@@ -1026,8 +1028,9 @@ function olRow(o) {
       <span class="muted small">(${t.follows < .15 ? 'it barely follows the weather' : `moves ${Math.round(t.follows * 100)}% as much as the weather`}, learned from ${o.learned_days} days)</span></p></div>`;
   }
   const tn = o.tonight, tm = o.tomorrow, bits = [];
-  if (tn) bits.push(`Tonight: low <b>${tn.lo.toFixed(1)}°</b> around ${esc(hm(tn.lo_t))} <span class="muted">(forecast ${tn.fc_lo.toFixed(1)}°)</span>`);
-  if (tm?.hi != null) bits.push(`${dayWord(tm.day)}: high <b>${tm.hi.toFixed(1)}°</b> around ${esc(hm(tm.hi_t))} <span class="muted">(forecast ${tm.fc_hi.toFixed(1)}°${tm.sun ? ', higher here in the sun' : ''})</span>`);
+  const rg = r => r ? ` <span class="muted">(likely ${r[0].toFixed(1)}–${r[1].toFixed(1)}°)</span>` : '';
+  if (tn) bits.push(`Tonight: low <b>${tn.lo.toFixed(1)}°</b>${rg(tn.range)} around ${esc(hm(tn.lo_t))} <span class="muted">· forecast ${tn.fc_lo.toFixed(1)}°</span>`);
+  if (tm?.hi != null) bits.push(`${dayWord(tm.day)}: high <b>${tm.hi.toFixed(1)}°</b>${rg(tm.range)} around ${esc(hm(tm.hi_t))} <span class="muted">· forecast ${tm.fc_hi.toFixed(1)}°${tm.sun ? ', higher here in the sun' : ''}</span>`);
   return `<div class="ol-row"><h4>${esc(o.name)}<small>outdoor, learned from ${o.learned_hours} hours</small></h4><div><p>${bits.join(' · ') || 'Learning…'}</p>
     ${o.dew ? `<span class="chip">💧 Dew likely around ${esc(hm(o.dew.ts))}</span>` : ''}${spark(o.series)}</div></div>`;
 }
